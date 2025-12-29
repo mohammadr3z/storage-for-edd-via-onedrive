@@ -1,0 +1,15 @@
+{
+    "name": "mohammadr3z/storage-for-edd-via-onedrive",
+    "description": "Enable secure cloud storage and delivery of your digital products through Microsoft OneDrive for Easy Digital Downloads.",
+    "type": "wordpress-plugin",
+    "license": "GPL-2.0-or-later",
+    "require": {
+        "php": ">=7.4",
+        "guzzlehttp/guzzle": "^7.0"
+    },
+    "autoload": {
+        "classmap": [
+            "includes/"
+        ]
+    }
+}

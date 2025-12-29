@@ -1,0 +1,368 @@
+/* Modern OneDrive Upload Form Styles - Fully Responsive */
+:root {
+    --odse-primary: #2271b1;
+    --odse-primary-hover: #135e96;
+    --odse-error: #dc3232;
+    --odse-success: #46b450;
+    --odse-warning: #f0b849;
+    --odse-text: #1d2327;
+    --odse-text-secondary: #50575e;
+    --odse-border: #dcdcde;
+    --odse-background: #f8f9fa;
+    --odse-card-shadow: 0 2px 4px rgba(0, 0, 0, 0.08);
+    --odse-transition: all 0.2s ease;
+}
+
+/* Error Messages */
+.edd_errors {
+    border-radius: 0.5rem;
+    margin: 0 0 1.5rem 0;
+    box-shadow: var(--odse-card-shadow);
+    padding: 1rem;
+    background: #fef7f7;
+    border-left: 4px solid var(--odse-error);
+}
+
+.edd_errors p {
+    margin: 0.75rem 0;
+    padding: 0;
+    line-height: 1.5;
+    color: inherit;
+    font-size: 0.875rem;
+}
+
+/* Notice Styles */
+.odse-notice {
+    background: #fff;
+    border-left: 4px solid var(--odse-primary);
+    box-shadow: var(--odse-card-shadow);
+    margin: 1.25rem 0;
+    padding: 1rem;
+    border-radius: 0.375rem;
+    transition: var(--odse-transition);
+}
+
+.odse-notice.warning {
+    border-left-color: var(--odse-warning);
+    background: #fffbf1;
+}
+
+.odse-notice.error {
+    border-left-color: var(--odse-error);
+    background: #fef7f7;
+}
+
+.odse-notice.success {
+    border-left-color: var(--odse-success);
+    background: #f7fef7;
+}
+
+/* RTL Support for Upload Notices */
+html[dir="rtl"] .edd_errors,
+body.rtl .edd_errors {
+    border-left: none;
+    border-right: 4px solid var(--odse-error);
+}
+
+html[dir="rtl"] .odse-notice,
+body.rtl .odse-notice {
+    border-left: none;
+    border-right: 4px solid var(--odse-primary);
+}
+
+html[dir="rtl"] .odse-notice.warning,
+body.rtl .odse-notice.warning {
+    border-right-color: var(--odse-warning);
+}
+
+html[dir="rtl"] .odse-notice.error,
+body.rtl .odse-notice.error {
+    border-right-color: var(--odse-error);
+}
+
+html[dir="rtl"] .odse-notice.success,
+body.rtl .odse-notice.success {
+    border-right-color: var(--odse-success);
+}
+
+.odse-notice h4 {
+    margin: 0 0 0.75rem;
+    font-size: 1rem;
+    color: var(--odse-text);
+    font-weight: 600;
+}
+
+.odse-notice p {
+    margin: 0 0 1rem;
+    color: var(--odse-text-secondary);
+    font-size: 0.875rem;
+    line-height: 1.6;
+}
+
+.odse-notice p:last-child {
+    margin-bottom: 0;
+}
+
+/* File Path Styling */
+.odse-path {
+    font-family: 'Courier New', Courier, monospace;
+    font-size: 0.8125rem;
+    color: #646970;
+    background: #f6f7f7;
+    padding: 2px 6px;
+    border-radius: 3px;
+    display: inline-block;
+    word-break: break-all;
+    font-style: normal;
+}
+
+.odse-upload-path {
+    font-size: 0.8125rem;
+    color: var(--odse-text-secondary);
+    margin-top: 0.5rem !important;
+    padding-top: 0.5rem;
+    border-top: 1px solid #e5e7eb;
+}
+
+.odse-upload-path .odse-path {
+    font-weight: 500;
+}
+
+
+.odse-notice .button-primary {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--odse-primary);
+    border-color: var(--odse-primary);
+    color: #fff;
+    padding: 0.5rem 1rem;
+    height: auto;
+    line-height: 1.4;
+    font-size: 0.875rem;
+    border-radius: 0.375rem;
+    transition: var(--odse-transition);
+    text-decoration: none;
+    cursor: pointer;
+    font-weight: 500;
+}
+
+.odse-notice .button-primary:hover,
+.odse-notice .button-primary:focus {
+    background: var(--odse-primary-hover);
+    border-color: var(--odse-primary-hover);
+    color: #fff;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+/* Upload Form Styling */
+body#media-upload {
+    background: #f5f5f5;
+}
+
+.odse-upload-form {
+    background: #fff;
+    border: 1px solid #ddd;
+    border-radius: 6px;
+    padding: 10px 15px;
+    margin-bottom: 20px;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+    width: 100%;
+    box-sizing: border-box;
+}
+
+.odse-upload-form-header {
+    margin-bottom: 1.25rem;
+    padding-bottom: 0.75rem;
+    border-bottom: 1px solid var(--odse-border);
+}
+
+.odse-upload-form-title {
+    font-size: 1.125rem;
+    font-weight: 600;
+    color: var(--odse-text);
+    margin: 0 0 0.5rem 0;
+}
+
+.odse-upload-form-group {
+    margin-bottom: 1.25rem;
+}
+
+.odse-upload-form-group label {
+    display: block;
+    margin-bottom: 0.5rem;
+    font-weight: 500;
+    color: var(--odse-text);
+    font-size: 0.875rem;
+}
+
+.odse-upload-form input[type="file"] {
+    width: 100%;
+    padding: 0.75rem;
+    border: 1px solid var(--odse-border);
+    border-radius: 0.375rem;
+    background: var(--odse-background);
+    font-size: 0.875rem;
+    box-sizing: border-box;
+    transition: var(--odse-transition);
+}
+
+.odse-upload-form input[type="file"]:focus {
+    outline: none;
+    border-color: var(--odse-primary);
+    box-shadow: 0 0 0 2px rgba(34, 113, 177, 0.1);
+}
+
+.odse-upload-form .button-primary {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--odse-primary);
+    border-color: var(--odse-primary);
+    color: #fff;
+    padding: 0.75rem 1.25rem;
+    height: auto;
+    line-height: 1.4;
+    font-size: 0.875rem;
+    border-radius: 0.375rem;
+    transition: var(--odse-transition);
+    text-decoration: none;
+    cursor: pointer;
+    font-weight: 500;
+    border: 1px solid transparent;
+}
+
+.odse-upload-form .button-primary:hover,
+.odse-upload-form .button-primary:focus {
+    background: var(--odse-primary-hover);
+    border-color: var(--odse-primary-hover);
+    color: #fff;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+.odse-upload-form .description {
+    color: var(--odse-text-secondary);
+    font-size: 0.8125rem;
+    margin: 0.5rem 0 1rem;
+    line-height: 1.5;
+}
+
+.odse-upload-progress {
+    margin: 1rem 0;
+    background: var(--odse-background);
+    border-radius: 0.25rem;
+    height: 0.5rem;
+    overflow: hidden;
+}
+
+.odse-upload-progress-bar {
+    height: 100%;
+    background: var(--odse-primary);
+    width: 0;
+    transition: width 0.3s ease;
+}
+
+.odse-upload-file-info {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 0.75rem;
+    background: var(--odse-background);
+    border-radius: 0.375rem;
+    margin: 1rem 0;
+}
+
+.odse-upload-file-icon {
+    width: 2rem;
+    height: 2rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: #fff;
+    border-radius: 0.25rem;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+}
+
+.odse-upload-file-details {
+    flex: 1;
+}
+
+.odse-upload-file-name {
+    font-weight: 500;
+    color: var(--odse-text);
+    font-size: 0.875rem;
+    margin: 0 0 0.25rem 0;
+    word-break: break-all;
+}
+
+.odse-upload-file-meta {
+    font-size: 0.75rem;
+    color: var(--odse-text-secondary);
+}
+
+/* Responsive Design */
+@media screen and (max-width: 782px) {
+    .odse-upload-form {
+        padding: 1rem;
+        margin-top: 1rem;
+        border-radius: 0.375rem;
+    }
+
+    .odse-notice {
+        padding: 0.875rem;
+        margin: 1rem 0;
+    }
+
+    .odse-upload-form-header {
+        margin-bottom: 1rem;
+    }
+
+    .odse-upload-form-title {
+        font-size: 1rem;
+    }
+
+    .odse-upload-form .button-primary {
+        width: 100%;
+        justify-content: center;
+        padding: 0.875rem 1rem;
+        font-size: 1rem;
+        /* Larger touch target on mobile */
+    }
+
+    .odse-upload-form input[type="file"] {
+        padding: 0.875rem;
+        font-size: 1rem;
+        /* Prevent zoom on iOS */
+    }
+
+    /* Improve touch targets */
+    .odse-upload-form-group label {
+        font-size: 1rem;
+        margin-bottom: 0.75rem;
+    }
+
+    /* Stack file info on small screens */
+    .odse-upload-file-info {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 0.5rem;
+    }
+
+    .odse-upload-file-icon {
+        margin-bottom: 0.25rem;
+    }
+
+    /* Responsive file path styling */
+    .odse-path {
+        font-size: 0.75rem;
+        padding: 3px 6px;
+        max-width: 100%;
+        word-break: break-word;
+    }
+
+    .odse-upload-path {
+        font-size: 0.875rem;
+        margin-top: 0.75rem !important;
+        padding-top: 0.75rem;
+    }
+}

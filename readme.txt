@@ -15,19 +15,6 @@ Enable secure cloud storage and delivery of your digital products through Micros
 
 Storage for EDD via OneDrive is a powerful extension for Easy Digital Downloads that allows you to store and deliver your digital products using Microsoft OneDrive cloud storage. This plugin provides seamless integration with Microsoft Graph API, featuring OAuth2 authentication and secure download links.
 
-== External services ==
-
-This plugin connects to Microsoft Graph API (OneDrive) to manage files, create download links, and handle authentication.
-
-It sends the necessary authentication tokens and file requests to Microsoft servers. This happens when you browse your OneDrive files in the dashboard, upload files, or when a customer downloads a file.
-
-* **Service**: Microsoft Graph API (OneDrive)
-* **Used for**: Authentication, file browsing, uploading, and generating download links.
-* **Data sent**: OAuth tokens, file metadata, file content (during upload).
-* **URLs**:
-    * `https://graph.microsoft.com` (API calls)
-    * `https://login.microsoftonline.com` (Authentication)
-* **Legal**: [Terms of Service](https://www.microsoft.com/en-us/legal/terms-of-use), [Privacy Policy](https://privacy.microsoft.com/en-us/privacystatement)
 
 = Key Features =
 
@@ -96,19 +83,23 @@ It sends the necessary authentication tokens and file requests to Microsoft serv
 
 == Usage ==
 
-= Uploading Files =
+= Browsing and Selecting Files =
 
 1. When creating or editing a download in Easy Digital Downloads
 2. Click on "Upload File" or "Choose File"
-3. Select the "Upload to OneDrive" tab
-4. Choose your file and upload it directly to OneDrive
-5. The file URL will be automatically set with the OneDrive prefix
+3. Select the "OneDrive Library" tab
+4. Browse your OneDrive storage using the folder navigation
+5. Use the breadcrumb navigation bar to quickly jump to parent folders
+6. Use the search box in the header to filter files by name
+7. Click "Select" to use an existing file for your download
 
-= File Management =
+= Uploading New Files =
 
-* Use the "OneDrive Library" tab to browse existing files in your OneDrive
-* Navigate through folders to find your files
-* Click "Select" to use an existing file for your download
+1. In the "OneDrive Library" tab, click the "Upload" button in the header row
+2. The upload form will appear above the file list
+3. Choose your file and click "Upload"
+4. After a successful upload, the file URL will be automatically set with the OneDrive prefix
+5. Click "Back" to return to the file browser without uploading
 
 == Frequently Asked Questions ==
 
@@ -146,15 +137,25 @@ Yes, developers can customize the allowed MIME types using the `odse_allowed_mim
 
 == Screenshots ==
 
-1. Admin settings panel with OAuth connection
-2. OneDrive file browser in media library
-3. File upload interface
+1. Admin panel user interface
+2. File selection from OneDrive storage section
+3. File upload to OneDrive storage interface
+
+== Changelog ==
 
 = 1.0.2 =
+* Added: Native search input type with clear ("X") icon support for a cleaner UI.
+* Improved: Mobile breadcrumb navigation with path wrapping for long directory names.
+* Improved: Reduced separator spacing in breadcrumbs on mobile devices.
 * Improved: Media library table styling for more consistent file and folder display.
 * Improved: Redesigned folder rows with better icons and refined hover effects.
 * Improved: Enhanced mobile responsiveness for the file browser table.
 * Fixed: Corrected file name and path display order in the media library.
+* Improved: Standardized header row spacing and title font sizes for UI consistency.
+* Improved: Enhanced notice detail styling for better error/success message readability.
+* Improved: More robust handling of file lists with additional data validation.
+* Security: Standardized use of wp_json_encode() for client-side data.
+* Improved: Unified root folder label as "Home" across all breadcrumb states for consistent navigation.
 
 = 1.0.1 =
 * Added: Breadcrumb navigation in file browser - click any folder in the path to navigate directly.
@@ -175,6 +176,20 @@ Yes, developers can customize the allowed MIME types using the `odse_allowed_mim
 * Internationalization support
 
 
+
+== External services ==
+
+This plugin connects to Microsoft Graph API (OneDrive) to manage files, create download links, and handle authentication.
+
+It sends the necessary authentication tokens and file requests to Microsoft servers. This happens when you browse your OneDrive files in the dashboard, upload files, or when a customer downloads a file.
+
+* **Service**: Microsoft Graph API (OneDrive)
+* **Used for**: Authentication, file browsing, uploading, and generating download links.
+* **Data sent**: OAuth tokens, file metadata, file content (during upload).
+* **URLs**:
+    * `https://graph.microsoft.com` (API calls)
+    * `https://login.microsoftonline.com` (Authentication)
+* **Legal**: [Terms of Service](https://www.microsoft.com/en-us/legal/terms-of-use), [Privacy Policy](https://privacy.microsoft.com/en-us/privacystatement)
 
 == Support ==
 

@@ -9,13 +9,15 @@ body#media-upload {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    margin-bottom: 15px;
+    margin-bottom: 20px;
     flex-wrap: wrap;
     gap: 10px;
 }
 
 .odse-header-row .media-title {
     margin: 0;
+    font-size: 20px;
+    color: #1d2327;
 }
 
 .odse-header-buttons {
@@ -89,9 +91,7 @@ html[dir="rtl"] .odse-nav-group {
     margin: 0 !important;
 }
 
-.odse-search-inline .button {
-    margin: 0 !important;
-}
+
 
 .odse-nav-back {
     display: flex;
@@ -257,15 +257,33 @@ body.rtl .odse-breadcrumbs span {
     display: flex;
     align-items: center;
     gap: 8px;
+}
+
+/* RTL Support for File Name and Column Size */
+html[dir="rtl"] .odse-files-table .file-name,
+body.rtl .odse-files-table .file-name,
+html[dir="rtl"] .odse-files-table td.column-size,
+body.rtl .odse-files-table td.column-size {
     direction: ltr;
+}
+
+/* LTR: left-align file names */
+.odse-files-table .file-name,
+.odse-files-table td.column-size {
+    text-align: left;
+}
+
+/* RTL: right-align file names */
+html[dir="rtl"] .odse-files-table .file-name,
+body.rtl .odse-files-table .file-name,
+html[dir="rtl"] .odse-files-table td.column-size,
+body.rtl .odse-files-table td.column-size {
     text-align: right;
 }
 
 /* File Display Container */
 .odse-file-display {
-    display: flex;
-    flex-direction: column;
-    gap: 2px;
+    display: block;
 }
 
 .odse-file-display .file-name {
@@ -274,21 +292,6 @@ body.rtl .odse-breadcrumbs span {
     line-height: 1.5;
     display: block;
     letter-spacing: 0.01em;
-    order: 1;
-}
-
-.odse-file-display .file-path {
-    font-size: 11px;
-    font-weight: 400;
-    font-style: normal;
-    padding: 3px 0;
-    background: transparent;
-    border-radius: 0;
-    display: block;
-    max-width: 100%;
-    word-break: break-all;
-    opacity: 0.85;
-    order: 2;
 }
 
 .odse-files-table .file-size,
@@ -413,6 +416,36 @@ body.rtl .odse-notice.success {
         padding: 15px;
     }
 
+    /* Breadcrumb navigation responsive */
+    .odse-breadcrumb-nav {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 12px;
+    }
+
+    .odse-nav-group {
+        margin: 0;
+        width: 100%;
+    }
+
+    .odse-breadcrumbs {
+        white-space: normal;
+        word-break: break-word;
+    }
+
+    .odse-breadcrumbs .sep {
+        margin: 0 2px;
+    }
+
+    .odse-search-inline {
+        width: 100%;
+    }
+
+    .odse-search-inline .odse-search-input {
+        width: 100% !important;
+        flex: 1;
+    }
+
     .odse-files-table {
         width: 100%;
         margin: 15px 0;
@@ -431,10 +464,7 @@ body.rtl .odse-notice.success {
         padding: 8px !important;
     }
 
-    /* Hide file path on mobile */
-    .odse-file-display .file-path {
-        display: none;
-    }
+
 
     /* Search responsive styles */
     .odse-search-container {
@@ -454,14 +484,5 @@ body.rtl .odse-notice.success {
         padding: 10px 12px;
         font-size: 16px;
         height: 44px;
-    }
-
-    #odse-clear-search {
-        width: 100%;
-        padding: 10px 12px;
-        text-align: center;
-        font-size: 14px;
-        height: 44px;
-        min-width: auto;
     }
 }

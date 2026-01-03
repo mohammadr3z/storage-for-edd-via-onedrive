@@ -46,8 +46,8 @@ jQuery(function ($) {
         return false;
     });
 
-    // Search functionality
-    $('#odse-file-search').on('input', function () {
+    // Search functionality for OneDrive files
+    $('#odse-file-search').on('input search', function () {
         var searchTerm = $(this).val().toLowerCase();
         var $fileRows = $('.odse-files-table tbody tr');
         var visibleCount = 0;
@@ -77,10 +77,7 @@ jQuery(function ($) {
         }
     });
 
-    // Clear search
-    $('#odse-clear-search').click(function () {
-        $('#odse-file-search').val('').trigger('input');
-    });
+
 
     // Keyboard shortcut for search
     $(document).keydown(function (e) {

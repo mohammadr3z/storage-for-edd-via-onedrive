@@ -1,0 +1,98 @@
+/**
+ * ODSE Modal Styles
+ * WordPress Native Media Modal Style
+ */
+.odse-modal-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.7);
+    z-index: 100000;
+    display: none;
+    justify-content: center;
+    align-items: center;
+}
+
+.odse-modal-overlay.open {
+    display: flex;
+}
+
+.odse-modal {
+    width: 90%;
+    height: 90%;
+    max-width: 1200px;
+    max-height: 800px;
+    background: #f1f1f1;
+    display: flex;
+    flex-direction: column;
+    box-shadow: 0 5px 15px rgba(0, 0, 0, 0.5);
+    border-radius: 2px;
+    overflow: hidden;
+    position: relative;
+}
+
+/* Header */
+.odse-modal-header {
+    background: #fff;
+    padding: 15px 20px;
+    border-bottom: 1px solid #ddd;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    height: 50px;
+    box-sizing: border-box;
+}
+
+.odse-modal-title {
+    margin: 0;
+    font-size: 20px;
+    font-weight: 600;
+    color: #1d2327;
+}
+
+.odse-modal-close {
+    background: none;
+    border: none;
+    cursor: pointer;
+    color: #787c82;
+    padding: 0;
+    display: flex;
+    align-items: center;
+}
+
+.odse-modal-close:hover {
+    color: #d63638;
+}
+
+.odse-modal-close .dashicons {
+    font-size: 24px;
+    width: 24px;
+    height: 24px;
+}
+
+/* Content */
+.odse-modal-content {
+    flex: 1;
+    position: relative;
+    background: #fff;
+}
+
+.odse-modal-frame {
+    width: 100%;
+    height: 100%;
+    border: none;
+    display: block;
+}
+
+/* Responsive */
+@media screen and (max-width: 782px) {
+    .odse-modal {
+        width: 100%;
+        height: 100%;
+        max-width: none;
+        max-height: none;
+        border-radius: 0;
+    }
+}

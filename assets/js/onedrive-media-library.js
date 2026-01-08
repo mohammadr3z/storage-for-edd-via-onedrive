@@ -1,46 +1,21 @@
 /**
  * OneDrive Media Library JavaScript
- * Exactly matching working S3/Dropbox plugin pattern
  */
 jQuery(function ($) {
     // File selection handler
     $('.save-odse-file').click(function () {
         var filename = $(this).data('odse-filename');
         var fileurl = odse_url_prefix + $(this).data('odse-link');
-        var success = false;
 
-        // Try to use EDD's global variables set by the upload button
-        if (parent.window && parent.window !== window) {
-            if (parent.window.edd_filename && parent.window.edd_fileurl) {
-                $(parent.window.edd_filename).val(filename);
-                $(parent.window.edd_fileurl).val(fileurl);
-                success = true;
-                try { parent.window.tb_remove(); } catch (e) { parent.window.tb_remove(); }
+        // Check for ODSE Modal variables (New System)
+        if (parent.window && parent.window.odse_current_name_input && parent.window.odse_current_url_input) {
+            parent.window.odse_current_name_input.val(filename);
+            parent.window.odse_current_url_input.val(fileurl);
+
+            if (parent.ODSEModal) {
+                parent.ODSEModal.close();
             }
-        } else {
-            if (window.edd_filename && window.edd_fileurl) {
-                $(window.edd_filename).val(filename);
-                $(window.edd_fileurl).val(fileurl);
-                success = true;
-            }
-        }
-
-        // Fallback: try to find EDD file inputs directly
-        if (!success) {
-            var $filenameInput = $('input[name*="edd_download_files"][name*="[name]"]').last();
-            var $fileurlInput = $('input[name*="edd_download_files"][name*="[file]"]').last();
-
-            if ($filenameInput.length && $fileurlInput.length) {
-                $filenameInput.val(filename);
-                $fileurlInput.val(fileurl);
-                success = true;
-            }
-        }
-
-        if (success) {
-            alert(odse_i18n.file_selected_success);
-        } else {
-            alert(odse_i18n.file_selected_error);
+            // Alert is not needed as the modal closes immediately, providing visual feedback
         }
 
         return false;

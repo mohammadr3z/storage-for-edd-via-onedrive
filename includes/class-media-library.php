@@ -20,27 +20,19 @@ class ODSE_Media_Library
         $this->client = new ODSE_OneDrive_Client();
 
         // Media library integration
-        add_filter('media_upload_tabs', array($this, 'addOneDriveTabs'));
         add_action('media_upload_odse_lib', array($this, 'registerLibraryTab'));
-        add_action('admin_head', array($this, 'setupAdminJS'));
 
         // Enqueue styles
         add_action('admin_enqueue_scripts', array($this, 'enqueueStyles'));
+
+        // Add OneDrive button to EDD downloadable files (Server Side)
+        add_action('edd_download_file_table_row', array($this, 'renderBrowseButton'), 10, 3);
+
+        // Print scripts for button functionality
+        add_action('admin_footer', array($this, 'printAdminScripts'));
     }
 
-    /**
-     * Add OneDrive tabs to media uploader
-     * 
-     * @param array $default_tabs
-     * @return array
-     */
-    public function addOneDriveTabs($default_tabs)
-    {
-        if ($this->config->isConnected()) {
-            $default_tabs['odse_lib'] = esc_html__('OneDrive Library', 'storage-for-edd-via-onedrive');
-        }
-        return $default_tabs;
-    }
+
 
     /**
      * Register OneDrive Library tab
@@ -77,7 +69,6 @@ class ODSE_Media_Library
      */
     public function renderLibraryTab()
     {
-        media_upload_header();
         wp_enqueue_style('media');
         wp_enqueue_style('odse-media-library');
         wp_enqueue_style('odse-media-container');
@@ -124,10 +115,12 @@ class ODSE_Media_Library
         ?>
 
         <?php
-        // Calculate back URL for header if in subfolder
+        // Get folder info (details + parent) in single API call - Performance optimization
+        $folderInfo = null;
         $back_url = '';
         if (!empty($folderId) && $folderId !== 'root') {
-            $parentFolderId = $this->client->getParentFolderId($folderId);
+            $folderInfo = $this->client->getFolderInfo($folderId);
+            $parentFolderId = $folderInfo['parentId'];
             if ($parentFolderId === false) {
                 $parentFolderId = 'root';
             }
@@ -176,9 +169,8 @@ class ODSE_Media_Library
 
                         <div class="odse-breadcrumbs">
                             <?php
-                            if (!empty($folderId) && $folderId !== 'root') {
-                                $folderDetails = $this->client->getFolderDetails($folderId);
-                                $currentPath = ($folderDetails && isset($folderDetails['path'])) ? $folderDetails['path'] : '';
+                            if (!empty($folderId) && $folderId !== 'root' && $folderInfo) {
+                                $currentPath = isset($folderInfo['path']) ? $folderInfo['path'] : '';
 
                                 if (!empty($currentPath)) {
                                     // Build breadcrumb navigation from path
@@ -191,8 +183,7 @@ class ODSE_Media_Library
                                     $breadcrumb_links[] = '<a href="' . esc_url($root_url) . '">' . esc_html__('Home', 'storage-for-edd-via-onedrive') . '</a>';
 
                                     // Build path links - for OneDrive we need to get folder IDs for each path segment
-                                    // Since we don't have a reliable way to get intermediate folder IDs, 
-                                    // we'll just show current folder as bold (non-clickable) and root as clickable
+                                    // We show only current folder
                                     foreach ($path_parts as $index => $part) {
                                         if ($index === count($path_parts) - 1) {
                                             // Current folder - not a link
@@ -208,16 +199,15 @@ class ODSE_Media_Library
                                         'span' => array('class' => array())
                                     ));
                                 } else {
-                                                                    echo '<span class="current">' . esc_html__('Home', 'storage-for-edd-via-onedrive') . '</span>';
+                                    echo '<span class="current">' . esc_html__('Home', 'storage-for-edd-via-onedrive') . '</span>';
                                 }
                             } else {
-                                                                echo '<span class="current">' . esc_html__('Home', 'storage-for-edd-via-onedrive') . '</span>';
+                                echo '<span class="current">' . esc_html__('Home', 'storage-for-edd-via-onedrive') . '</span>';
                             }
                             ?>
                         </div>
                     </div>
 
-                    <!-- Moved Search Input -->
                     <?php if (!empty($files)) { ?>
                         <div class="odse-search-inline">
                             <input type="search"
@@ -376,16 +366,7 @@ class ODSE_Media_Library
                 <?php } ?>
             <?php } ?>
         </div>
-<?php
-    }
-
-
-    /**
-     * Setup admin JavaScript
-     */
-    public function setupAdminJS()
-    {
-        wp_enqueue_script('odse-admin-upload-buttons');
+    <?php
     }
 
     /**
@@ -403,8 +384,22 @@ class ODSE_Media_Library
             if (!isset($_GET['_wpnonce']) || !wp_verify_nonce(sanitize_text_field(wp_unslash($_GET['_wpnonce'])), 'media-form')) {
                 wp_die(esc_html__('Security check failed.', 'storage-for-edd-via-onedrive'));
             }
+            return sanitize_text_field(wp_unslash($_GET['folder']));
         }
-        return !empty($_GET['folder']) ? sanitize_text_field(wp_unslash($_GET['folder'])) : '';
+
+        // Context-Aware: Check for path parameter
+        if (!empty($_GET['odse_path'])) {
+            if (!isset($_GET['_wpnonce']) || !wp_verify_nonce(sanitize_text_field(wp_unslash($_GET['_wpnonce'])), 'media-form')) {
+                wp_die(esc_html__('Security check failed.', 'storage-for-edd-via-onedrive'));
+            }
+            $path = sanitize_text_field(wp_unslash($_GET['odse_path']));
+            $folderId = $this->client->getFolderIdByPath($path);
+            if ($folderId) {
+                return $folderId;
+            }
+        }
+
+        return '';
     }
 
     /**
@@ -449,11 +444,12 @@ class ODSE_Media_Library
         wp_register_style('odse-media-library', ODSE_PLUGIN_URL . 'assets/css/onedrive-media-library.css', array(), ODSE_VERSION);
         wp_register_style('odse-upload', ODSE_PLUGIN_URL . 'assets/css/onedrive-upload.css', array(), ODSE_VERSION);
         wp_register_style('odse-media-container', ODSE_PLUGIN_URL . 'assets/css/onedrive-media-container.css', array(), ODSE_VERSION);
+        wp_register_style('odse-modal', ODSE_PLUGIN_URL . 'assets/css/odse-modal.css', array('dashicons'), ODSE_VERSION);
 
         // Register scripts
         wp_register_script('odse-media-library', ODSE_PLUGIN_URL . 'assets/js/onedrive-media-library.js', array('jquery'), ODSE_VERSION, true);
         wp_register_script('odse-upload', ODSE_PLUGIN_URL . 'assets/js/onedrive-upload.js', array('jquery'), ODSE_VERSION, true);
-        wp_register_script('odse-admin-upload-buttons', ODSE_PLUGIN_URL . 'assets/js/admin-upload-buttons.js', array('jquery'), ODSE_VERSION, true);
+        wp_register_script('odse-modal', ODSE_PLUGIN_URL . 'assets/js/odse-modal.js', array('jquery'), ODSE_VERSION, true);
 
         // Localize scripts
         wp_localize_script('odse-media-library', 'odse_i18n', array(
@@ -469,7 +465,139 @@ class ODSE_Media_Library
 
         wp_add_inline_script('odse-upload', 'var odse_url_prefix = "' . esc_js($this->config->getUrlPrefix()) . '";', 'before');
         wp_add_inline_script('odse-upload', 'var odse_max_upload_size = ' . wp_json_encode(wp_max_upload_size()) . ';', 'before');
+    }
 
-        wp_add_inline_script('odse-admin-upload-buttons', 'var odse_url_prefix = "' . esc_js($this->config->getUrlPrefix()) . '";', 'before');
+    /**
+     * Render Browse OneDrive button in EDD file row (Server Side)
+     */
+    public function renderBrowseButton($key, $file, $post_id)
+    {
+        if (!$this->config->isConnected()) {
+            return;
+        }
+
+        // Add hidden input to store connection status/check if needed by JS (optional)
+    ?>
+        <div class="edd-form-group edd-file-odse-browse">
+            <label class="edd-form-group__label edd-repeatable-row-setting-label">&nbsp;</label>
+            <div class="edd-form-group__control">
+                <button type="button" class="button odse_browse_button">
+                    <?php esc_html_e('Browse OneDrive', 'storage-for-edd-via-onedrive'); ?>
+                </button>
+            </div>
+        </div>
+    <?php
+    }
+
+    /**
+     * Add OneDrive browse button scripts
+     */
+    public function printAdminScripts()
+    {
+        global $pagenow, $typenow;
+
+        // Only on EDD download edit pages
+        if (!($pagenow === 'post.php' || $pagenow === 'post-new.php') || $typenow !== 'download') {
+            return;
+        }
+
+        // Only if connected
+        if (!$this->config->isConnected()) {
+            return;
+        }
+
+        // Enqueue modal assets
+        wp_enqueue_style('odse-modal');
+        wp_enqueue_script('odse-modal');
+
+        $odse_url = admin_url('media-upload.php?type=odse_lib&tab=odse_lib');
+    ?>
+        <style>
+            /* OneDrive Button Styles */
+            .edd-file-odse-browse {
+                width: auto !important;
+                flex: 0 0 auto !important;
+                align-self: flex-end !important;
+            }
+
+            @media screen and (max-width: 782px) {
+                .edd-file-odse-browse {
+                    width: 100% !important;
+                    display: block;
+                    margin-top: 10px;
+                }
+
+                .edd-file-odse-browse .odse_browse_button {
+                    width: 100% !important;
+                    display: block;
+                }
+            }
+
+            .edd-file-odse-browse .edd-form-group__label {
+                display: none !important;
+            }
+
+            .odse_browse_button {
+                background: #0078d4 !important;
+                color: #fff !important;
+                border-color: #0078d4 !important;
+                padding: 4px 12px !important;
+                height: auto !important;
+                line-height: 1.4 !important;
+                font-size: 13px !important;
+                cursor: pointer !important;
+            }
+
+            .odse_browse_button:hover,
+            .odse_browse_button:focus {
+                background: #005a9e !important;
+                color: #fff !important;
+                border-color: #005a9e !important;
+            }
+        </style>
+        <script type="text/javascript">
+            jQuery(function($) {
+                var odseUrl = '<?php echo esc_js($odse_url); ?>';
+                var wpNonce = '<?php echo esc_js(wp_create_nonce("media-form")); ?>';
+                var modalTitle = '<?php echo esc_js(__('OneDrive Library', 'storage-for-edd-via-onedrive')); ?>';
+                var urlPrefix = '<?php echo esc_js($this->config->getUrlPrefix()); ?>';
+
+                // Event delegation for all browse buttons
+                $(document).on('click', '.odse_browse_button', function(e) {
+                    e.preventDefault();
+
+                    var $btn = $(this);
+                    var $row = $btn.closest('.edd_repeatable_row');
+
+                    // Store references to the input fields for this row
+                    window.odse_current_row = $row;
+                    window.odse_current_name_input = $row.find('input[name^="edd_download_files"][name$="[name]"]');
+                    window.odse_current_url_input = $row.find('input[name^="edd_download_files"][name$="[file]"]');
+
+                    // Context-Aware: Extract folder path from current URL
+                    var currentUrl = window.odse_current_url_input.val();
+                    var folderPath = '';
+
+                    if (currentUrl && currentUrl.indexOf(urlPrefix) === 0) {
+                        // Remove prefix
+                        var path = currentUrl.substring(urlPrefix.length);
+                        // Remove filename, keep folder path
+                        var lastSlash = path.lastIndexOf('/');
+                        if (lastSlash !== -1) {
+                            folderPath = path.substring(0, lastSlash);
+                        }
+                    }
+
+                    var modalUrl = odseUrl + '&_wpnonce=' + wpNonce;
+                    if (folderPath) {
+                        modalUrl += '&odse_path=' + encodeURIComponent(folderPath);
+                    }
+
+                    // Open Modal
+                    ODSEModal.open(modalUrl, modalTitle);
+                });
+            });
+        </script>
+<?php
     }
 }

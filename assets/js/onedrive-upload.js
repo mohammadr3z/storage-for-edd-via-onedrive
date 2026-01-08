@@ -1,34 +1,18 @@
-/**
- * OneDrive Upload Tab JavaScript
- * Matching Dropbox plugin pattern
- */
 jQuery(function ($) {
     // Handler for "Use this file in your Download" button after upload
     $('#odse_save_link').click(function () {
-        // Try to handle parent window interaction safely
-        if (parent.window && parent.window !== window) {
-            if (parent.window.edd_filename && parent.window.edd_fileurl) {
-                $(parent.window.edd_filename).val($(this).data('odse-fn'));
-                $(parent.window.edd_fileurl).val(odse_url_prefix + $(this).data('odse-path'));
-                try { parent.window.tb_remove(); } catch (e) { parent.window.tb_remove(); }
-                return;
+        var filename = $(this).data('odse-fn');
+        var path = $(this).data('odse-path');
+        var fileurl = odse_url_prefix + path;
+
+        // Check for ODSE Modal variables (New System)
+        if (parent.window && parent.window.odse_current_name_input && parent.window.odse_current_url_input) {
+            parent.window.odse_current_name_input.val(filename);
+            parent.window.odse_current_url_input.val(fileurl);
+
+            if (parent.ODSEModal) {
+                parent.ODSEModal.close();
             }
-        }
-
-        // Fallback or same-window context (rare for TB but possible)
-        if (window.edd_filename && window.edd_fileurl) {
-            $(window.edd_filename).val($(this).data('odse-fn'));
-            $(window.edd_fileurl).val(odse_url_prefix + $(this).data('odse-path'));
-        }
-
-        // Final fallback: try to find inputs by name if global vars fail
-        var $filenameInput = $(parent.document).find('input[name*="edd_download_files"][name*="[name]"]').last();
-        var $fileurlInput = $(parent.document).find('input[name*="edd_download_files"][name*="[file]"]').last();
-
-        if ($filenameInput.length && $fileurlInput.length) {
-            $filenameInput.val($(this).data('odse-fn'));
-            $fileurlInput.val(odse_url_prefix + $(this).data('odse-path'));
-            try { parent.window.tb_remove(); } catch (e) { parent.window.tb_remove(); }
         }
     });
 

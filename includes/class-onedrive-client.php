@@ -469,62 +469,59 @@ class ODSE_OneDrive_Client
     }
 
     /**
-     * Get folder details (name, path)
+     * Get folder info (details + parent ID) in single API call
+     * Performance optimization: replaces separate getFolderDetails + getParentFolderId calls
      * 
      * @param string $folderId Folder ID
-     * @return array|false Folder details or false
+     * @return array ['name' => string, 'path' => string, 'parentId' => string|false]
      */
-    public function getFolderDetails($folderId)
+    public function getFolderInfo($folderId)
     {
         if (empty($folderId) || $folderId === 'root') {
-            return ['name' => 'root', 'path' => ''];
+            return [
+                'name' => 'root',
+                'path' => '',
+                'parentId' => false
+            ];
         }
 
+        // Single API call to get all needed info
         $response = $this->apiRequest('/me/drive/items/' . $folderId . '?select=id,name,parentReference');
 
         if ($response && isset($response['name'])) {
-            $path = isset($response['parentReference']['path']) ? $response['parentReference']['path'] . '/' . $response['name'] : '/' . $response['name'];
+            // Build path
+            $path = isset($response['parentReference']['path'])
+                ? $response['parentReference']['path'] . '/' . $response['name']
+                : '/' . $response['name'];
 
             // Clean up path - remove /drive/root: prefix
             if (strpos($path, '/drive/root:') === 0) {
                 $path = substr($path, 12);
             }
 
+            // Get parent ID
+            $parentId = 'root';
+            if (isset($response['parentReference']['id'])) {
+                // Check if parent is root
+                if (isset($response['parentReference']['path']) && $response['parentReference']['path'] === '/drive/root:') {
+                    $parentId = 'root';
+                } else {
+                    $parentId = $response['parentReference']['id'];
+                }
+            }
+
             return [
                 'name' => $response['name'],
-                'path' => $path
+                'path' => $path,
+                'parentId' => $parentId
             ];
         }
 
-        return false;
-    }
-
-    /**
-     * Get parent folder ID
-     * 
-     * @param string $folderId Folder ID
-     * @return string|false Parent folder ID or 'root' or false
-     */
-    public function getParentFolderId($folderId)
-    {
-        if (empty($folderId) || $folderId === 'root') {
-            return false;
-        }
-
-        $response = $this->apiRequest('/me/drive/items/' . $folderId . '?select=id,parentReference');
-
-        if ($response && isset($response['parentReference']['id'])) {
-            $parentId = $response['parentReference']['id'];
-
-            // Check if parent is root
-            if (isset($response['parentReference']['path']) && $response['parentReference']['path'] === '/drive/root:') {
-                return 'root';
-            }
-
-            return $parentId;
-        }
-
-        return 'root';
+        return [
+            'name' => '',
+            'path' => '',
+            'parentId' => false
+        ];
     }
 
     /**
@@ -536,5 +533,44 @@ class ODSE_OneDrive_Client
     {
         $response = $this->apiRequest('/me');
         return $response;
+    }
+    /**
+     * Get folder ID by path
+     * 
+     * @param string $path Folder path
+     * @return string|false Folder ID or false on failure
+     */
+    public function getFolderIdByPath($path)
+    {
+        // Clean path of potential protocol prefix and leading slashes
+        $path = str_replace('onedrive://', '', $path);
+        $path = trim($path, '/');
+
+        if (empty($path)) {
+            return 'root';
+        }
+
+        // Encode path segments
+        $segments = explode('/', $path);
+        $encodedPath = implode('/', array_map('rawurlencode', $segments));
+
+        // Request id, folder (to check if it is a folder), and parentReference (to get parent if it is a file)
+        $endpoint = '/me/drive/root:/' . $encodedPath . '?select=id,folder,parentReference';
+        $response = $this->apiRequest($endpoint);
+
+        if ($response && isset($response['id'])) {
+            // Verify it is actually a folder
+            if (isset($response['folder'])) {
+                return $response['id'];
+            }
+            // If it's a file, get its parent from parentReference
+            if (isset($response['parentReference']['id'])) {
+                return $response['parentReference']['id'];
+            }
+            // Fallback for root parent or missing parent info
+            return 'root';
+        }
+
+        return false;
     }
 }

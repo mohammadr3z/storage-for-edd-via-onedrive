@@ -171,11 +171,6 @@ body.rtl .odse-nav-back {
     font-weight: 600;
 }
 
-.odse-breadcrumbs .text {
-    color: #646970;
-    font-weight: 400;
-}
-
 /* RTL Support for Breadcrumb */
 html[dir="rtl"] .odse-nav-back,
 body.rtl .odse-nav-back {

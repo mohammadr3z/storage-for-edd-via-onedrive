@@ -3,7 +3,7 @@
 /**
  * Plugin Name: Storage for EDD via OneDrive
  * Description: Enable secure cloud storage and delivery of your digital products through Microsoft OneDrive for Easy Digital Downloads.
- * Version: 1.0.2
+ * Version: 1.0.4
  * Author: mohammadr3z
  * Requires Plugins: easy-digital-downloads
  * License: GPL-2.0-or-later
@@ -28,7 +28,7 @@ if (!defined('ODSE_PLUGIN_URL')) {
     define('ODSE_PLUGIN_URL', plugin_dir_url(__FILE__));
 }
 if (!defined('ODSE_VERSION')) {
-    define('ODSE_VERSION', '1.0.2');
+    define('ODSE_VERSION', '1.0.4');
 }
 
 // Load plugin classes

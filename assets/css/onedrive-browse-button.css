@@ -1,0 +1,45 @@
+/**
+ * OneDrive Browse Button Styles
+ * Used in EDD download files section
+ */
+
+.edd-file-odse-browse {
+    width: auto !important;
+    flex: 0 0 auto !important;
+    align-self: flex-end !important;
+}
+
+@media screen and (max-width: 782px) {
+    .edd-file-odse-browse {
+        width: 100% !important;
+        display: block;
+        margin-top: 10px;
+    }
+
+    .edd-file-odse-browse .odse_browse_button {
+        width: 100% !important;
+        display: block;
+    }
+}
+
+.edd-file-odse-browse .edd-form-group__label {
+    display: none !important;
+}
+
+.odse_browse_button {
+    background: #0078d4 !important;
+    color: #fff !important;
+    border-color: #0078d4 !important;
+    padding: 4px 12px !important;
+    height: auto !important;
+    line-height: 1.4 !important;
+    font-size: 13px !important;
+    cursor: pointer !important;
+}
+
+.odse_browse_button:hover,
+.odse_browse_button:focus {
+    background: #005a9e !important;
+    color: #fff !important;
+    border-color: #005a9e !important;
+}

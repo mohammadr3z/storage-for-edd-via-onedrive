@@ -143,6 +143,9 @@ Yes, developers can customize the allowed MIME types using the `odse_allowed_mim
 
 == Changelog ==
 
+= 1.0.4 =
+* Use wp_enqueue commands: Replaced inline <style> and <script> in includes/class-media-library.php (admin media library)
+
 = 1.0.3 =
 * Added: New "Browse" button next to file inputs for easier file selection.
 * Improved: Modernized file browser UI with a dedicated modal window.

@@ -37,69 +37,32 @@ Storage for EDD via OneDrive is a powerful extension for Easy Digital Downloads 
 
 == Configuration ==
 
-= Step 1: Register an Azure AD Application =
-
-1. Go to [Azure App Registrations](https://portal.azure.com/#blade/Microsoft_AAD_RegisteredApps/ApplicationsListBlade)
-2. Click "New registration"
-3. Enter a name for your application
-4. Select "Accounts in any organizational directory and personal Microsoft accounts"
-5. Click "Register"
-
-= Step 2: Configure API Permissions =
-
-1. In your app registration, go to "API permissions"
-2. Click "Add a permission" > "Microsoft Graph" > "Delegated permissions"
-3. Add these permissions:
-   * Files.Read
-   * Files.ReadWrite
-   * Files.Read.All
-   * Files.ReadWrite.All
-   * User.Read
-   * offline_access
-4. Click "Grant admin consent" if available
-
-= Step 3: Add Redirect URI =
-
-1. Go to "Authentication" in your app registration
-2. Click "Add a platform" > "Web"
-3. Add this Redirect URI: `https://your-site.com/wp-admin/admin-post.php?action=odse_oauth_callback`
-4. Replace `your-site.com` with your actual domain
-
-= Step 4: Create Client Secret =
-
-1. Go to "Certificates & secrets"
-2. Click "New client secret"
-3. Add a description and set expiration
-4. Copy the secret Value (not the ID) immediately
-
-= Step 5: Connect in WordPress =
-
-1. Go to Downloads > Settings > Extensions > OneDrive Storage
-2. Enter your Application (client) ID and Client Secret
-3. Save settings
-4. Click "Connect to OneDrive"
-5. Authorize the connection in the Microsoft popup
-6. You're connected!
+1. Register an Azure AD Application at [Azure App Registrations](https://portal.azure.com/#blade/Microsoft_AAD_RegisteredApps/ApplicationsListBlade)
+2. Add API permissions for Microsoft Graph (Files.Read, Files.ReadWrite, User.Read, offline_access)
+3. Set Redirect URI to: `https://your-site.com/odse-oauth-callback/`
+4. Create a Client Secret and copy the value
+5. Go to Downloads > Settings > Extensions > OneDrive Storage
+6. Enter your Application (client) ID and Client Secret
+7. Save settings and click "Connect to OneDrive"
 
 == Usage ==
 
 = Browsing and Selecting Files =
 
 1. When creating or editing a download in Easy Digital Downloads
-2. Click on "Upload File" or "Choose File"
-3. Select the "OneDrive Library" tab
-4. Browse your OneDrive storage using the folder navigation
-5. Use the breadcrumb navigation bar to quickly jump to parent folders
-6. Use the search box in the header to filter files by name
-7. Click "Select" to use an existing file for your download
+2. Click the "Browse OneDrive" button next to the file URL field
+3. Browse your OneDrive storage using the folder navigation
+4. Use the breadcrumb navigation bar to quickly jump to parent folders
+5. Use the search box in the header to filter files by name
+6. Click "Select" to use an existing file for your download
 
 = Uploading New Files =
 
-1. In the "OneDrive Library" tab, click the "Upload" button in the header row
+1. In the OneDrive browser, click the "Upload" button in the header row
 2. The upload form will appear above the file list
 3. Choose your file and click "Upload"
 4. After a successful upload, the file URL will be automatically set with the OneDrive prefix
-5. Click "Back" to return to the file browser without uploading
+5. Click the button again to hide the upload form
 
 == Frequently Asked Questions ==
 

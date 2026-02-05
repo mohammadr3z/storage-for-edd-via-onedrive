@@ -4,7 +4,7 @@ Contributors: mohammadr3z
 Tags: easy-digital-downloads, onedrive, storage, cloud, edd
 Requires at least: 5.0
 Tested up to: 6.9
-Stable tag: 1.0.4
+Stable tag: 1.0.5
 Requires PHP: 7.4
 License: GPL-2.0-or-later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
@@ -105,6 +105,11 @@ Yes, developers can customize the allowed MIME types using the `odse_allowed_mim
 3. File upload to OneDrive storage interface
 
 == Changelog ==
+
+= 1.0.5 =
+* Improved: UI styles and enhanced layout consistency for better harmony.
+* Improved: Comprehensive code improvements and stability optimizations.
+* Added: Skeleton loader with shimmer animation for better UX while loading OneDrive browser modal.
 
 = 1.0.4 =
 * Use wp_enqueue commands: Replaced inline <style> and <script> in includes/class-media-library.php (admin media library)

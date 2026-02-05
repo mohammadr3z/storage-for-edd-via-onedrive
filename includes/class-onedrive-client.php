@@ -196,9 +196,10 @@ class ODSE_OneDrive_Client
      * @param string $method HTTP method (GET, POST, etc.)
      * @param array $data Request data
      * @param bool $isJson Whether to send data as JSON
+     * @param bool $retry Whether this is a retry after token refresh (prevents infinite recursion)
      * @return array|false Response data or false on failure
      */
-    private function apiRequest($endpoint, $method = 'GET', $data = [], $isJson = true)
+    private function apiRequest($endpoint, $method = 'GET', $data = [], $isJson = true, $retry = false)
     {
         $client = $this->getClient();
         $access_token = $this->getValidAccessToken();
@@ -229,12 +230,15 @@ class ODSE_OneDrive_Client
 
             $statusCode = $response->getStatusCode();
 
-            // Handle token expiration
-            if ($statusCode === 401) {
+            // Handle token expiration (only retry once to prevent infinite recursion)
+            if ($statusCode === 401 && !$retry) {
                 if ($this->refreshAccessToken()) {
                     // Retry request with new token
-                    return $this->apiRequest($endpoint, $method, $data, $isJson);
+                    return $this->apiRequest($endpoint, $method, $data, $isJson, true);
                 }
+                return false;
+            } elseif ($statusCode === 401) {
+                $this->config->debug('API request failed after token refresh: ' . $endpoint);
                 return false;
             }
 
@@ -287,7 +291,19 @@ class ODSE_OneDrive_Client
             return $files;
         }
 
-        foreach ($response['value'] as $item) {
+        $allEntries = $response['value'];
+
+        // Handle pagination if there are more files
+        while (isset($response['@odata.nextLink'])) {
+            $nextUrl = str_replace(self::API_URL, '', $response['@odata.nextLink']);
+            $response = $this->apiRequest($nextUrl);
+
+            if ($response && isset($response['value'])) {
+                $allEntries = array_merge($allEntries, $response['value']);
+            }
+        }
+
+        foreach ($allEntries as $item) {
             $isFolder = isset($item['folder']);
 
             $path = isset($item['parentReference']['path']) ? $item['parentReference']['path'] . '/' . $item['name'] : '/' . $item['name'];
@@ -306,35 +322,6 @@ class ODSE_OneDrive_Client
                 'is_folder' => $isFolder,
                 'download_url' => isset($item['@microsoft.graph.downloadUrl']) ? $item['@microsoft.graph.downloadUrl'] : ''
             ];
-        }
-
-        // Handle pagination if there are more files
-        while (isset($response['@odata.nextLink'])) {
-            $nextUrl = str_replace(self::API_URL, '', $response['@odata.nextLink']);
-            $response = $this->apiRequest($nextUrl);
-
-            if ($response && isset($response['value'])) {
-                foreach ($response['value'] as $item) {
-                    $isFolder = isset($item['folder']);
-
-                    $path = isset($item['parentReference']['path']) ? $item['parentReference']['path'] . '/' . $item['name'] : '/' . $item['name'];
-
-                    // Clean up path - remove /drive/root: prefix
-                    if (strpos($path, '/drive/root:') === 0) {
-                        $path = substr($path, 12);
-                    }
-
-                    $files[] = [
-                        'name' => $item['name'],
-                        'id' => $item['id'],
-                        'path' => $path,
-                        'size' => isset($item['size']) ? $item['size'] : 0,
-                        'modified' => isset($item['lastModifiedDateTime']) ? $item['lastModifiedDateTime'] : '',
-                        'is_folder' => $isFolder,
-                        'download_url' => isset($item['@microsoft.graph.downloadUrl']) ? $item['@microsoft.graph.downloadUrl'] : ''
-                    ];
-                }
-            }
         }
 
         return $files;

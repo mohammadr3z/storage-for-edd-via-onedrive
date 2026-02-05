@@ -384,7 +384,7 @@ class ODSE_Media_Library
             if (!isset($_GET['_wpnonce']) || !wp_verify_nonce(sanitize_text_field(wp_unslash($_GET['_wpnonce'])), 'media-form')) {
                 wp_die(esc_html__('Security check failed.', 'storage-for-edd-via-onedrive'));
             }
-            return sanitize_text_field(wp_unslash($_GET['folder']));
+            return trim(sanitize_text_field(wp_unslash($_GET['folder'])));
         }
 
         // Context-Aware: Check for path parameter
@@ -392,7 +392,7 @@ class ODSE_Media_Library
             if (!isset($_GET['_wpnonce']) || !wp_verify_nonce(sanitize_text_field(wp_unslash($_GET['_wpnonce'])), 'media-form')) {
                 wp_die(esc_html__('Security check failed.', 'storage-for-edd-via-onedrive'));
             }
-            $path = sanitize_text_field(wp_unslash($_GET['odse_path']));
+            $path = trim(sanitize_text_field(wp_unslash($_GET['odse_path'])));
             $folderId = $this->client->getFolderIdByPath($path);
             if ($folderId) {
                 return $folderId;
@@ -409,10 +409,13 @@ class ODSE_Media_Library
      */
     private function formatFileSize($size)
     {
-        if ($size == 0) return '0 B';
+        if ($size === 0) return '0 B';
 
         $units = array('B', 'KB', 'MB', 'GB', 'TB');
         $power = floor(log($size, 1024));
+        if ($power >= count($units)) {
+            $power = count($units) - 1;
+        }
 
         return round($size / pow(1024, $power), 2) . ' ' . $units[$power];
     }
@@ -444,13 +447,13 @@ class ODSE_Media_Library
         wp_register_style('odse-media-library', ODSE_PLUGIN_URL . 'assets/css/onedrive-media-library.css', array(), ODSE_VERSION);
         wp_register_style('odse-upload', ODSE_PLUGIN_URL . 'assets/css/onedrive-upload.css', array(), ODSE_VERSION);
         wp_register_style('odse-media-container', ODSE_PLUGIN_URL . 'assets/css/onedrive-media-container.css', array(), ODSE_VERSION);
-        wp_register_style('odse-modal', ODSE_PLUGIN_URL . 'assets/css/odse-modal.css', array('dashicons'), ODSE_VERSION);
+        wp_register_style('odse-modal', ODSE_PLUGIN_URL . 'assets/css/onedrive-modal.css', array('dashicons'), ODSE_VERSION);
         wp_register_style('odse-browse-button', ODSE_PLUGIN_URL . 'assets/css/onedrive-browse-button.css', array(), ODSE_VERSION);
 
         // Register scripts
         wp_register_script('odse-media-library', ODSE_PLUGIN_URL . 'assets/js/onedrive-media-library.js', array('jquery'), ODSE_VERSION, true);
         wp_register_script('odse-upload', ODSE_PLUGIN_URL . 'assets/js/onedrive-upload.js', array('jquery'), ODSE_VERSION, true);
-        wp_register_script('odse-modal', ODSE_PLUGIN_URL . 'assets/js/odse-modal.js', array('jquery'), ODSE_VERSION, true);
+        wp_register_script('odse-modal', ODSE_PLUGIN_URL . 'assets/js/onedrive-modal.js', array('jquery'), ODSE_VERSION, true);
         wp_register_script('odse-browse-button', ODSE_PLUGIN_URL . 'assets/js/onedrive-browse-button.js', array('jquery', 'odse-modal'), ODSE_VERSION, true);
 
         // Localize scripts

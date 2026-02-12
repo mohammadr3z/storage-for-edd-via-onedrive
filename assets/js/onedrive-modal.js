@@ -2,41 +2,44 @@
  * ODSE Modal JS
  */
 var ODSEModal = (function ($) {
-    var $modal, $overlay, $iframe, $closeBtn, $skeleton;
+    var $modal, $overlay, $container, $closeBtn, $skeleton;
+
+    // Skeleton rows - shared with ODSEMediaLibrary
+    var skeletonRowsHtml =
+        '<tr><td><div class="odse-skeleton-cell" style="width: 70%;"></div></td><td><div class="odse-skeleton-cell" style="width: 60%;"></div></td><td><div class="odse-skeleton-cell" style="width: 80%;"></div></td><td><div class="odse-skeleton-cell" style="width: 70%;"></div></td></tr>' +
+        '<tr><td><div class="odse-skeleton-cell" style="width: 55%;"></div></td><td><div class="odse-skeleton-cell" style="width: 50%;"></div></td><td><div class="odse-skeleton-cell" style="width: 75%;"></div></td><td><div class="odse-skeleton-cell" style="width: 70%;"></div></td></tr>' +
+        '<tr><td><div class="odse-skeleton-cell" style="width: 80%;"></div></td><td><div class="odse-skeleton-cell" style="width: 45%;"></div></td><td><div class="odse-skeleton-cell" style="width: 70%;"></div></td><td><div class="odse-skeleton-cell" style="width: 70%;"></div></td></tr>' +
+        '<tr><td><div class="odse-skeleton-cell" style="width: 65%;"></div></td><td><div class="odse-skeleton-cell" style="width: 55%;"></div></td><td><div class="odse-skeleton-cell" style="width: 85%;"></div></td><td><div class="odse-skeleton-cell" style="width: 70%;"></div></td></tr>';
 
     function init() {
         if ($('#odse-modal-overlay').length) {
             return;
         }
 
-        // Skeleton HTML structure
+        // Skeleton HTML structure - uses real table with skeleton rows
         var skeletonHtml =
             '<div class="odse-skeleton-loader">' +
-            '<div class="odse-skeleton-header">' +
-            '<div class="odse-skeleton-title"></div>' +
-            '<div class="odse-skeleton-button"></div>' +
-            '</div>' +
-            '<div class="odse-skeleton-breadcrumb">' +
-            '<div class="odse-skeleton-back-btn"></div>' +
-            '<div class="odse-skeleton-path"></div>' +
-            '<div class="odse-skeleton-search"></div>' +
-            '</div>' +
-            '<div class="odse-skeleton-table">' +
-            '<div class="odse-skeleton-thead">' +
-            '<div class="odse-skeleton-row">' +
-            '<div class="odse-skeleton-cell name"></div>' +
-            '<div class="odse-skeleton-cell size"></div>' +
-            '<div class="odse-skeleton-cell date"></div>' +
-            '<div class="odse-skeleton-cell action"></div>' +
+            '<div class="odse-header-row">' +
+            '<h3 class="media-title">' + (typeof odse_browse_button !== 'undefined' && odse_browse_button.i18n_select_file || 'Select a file from OneDrive') + '</h3>' +
+            '<div class="odse-header-buttons">' +
+            '<button type="button" class="button button-primary" id="odse-toggle-upload">' + (typeof odse_browse_button !== 'undefined' && odse_browse_button.i18n_upload || 'Upload File') + '</button>' +
             '</div>' +
             '</div>' +
-            '<div class="odse-skeleton-row">' +
-            '<div class="odse-skeleton-cell name"></div>' +
-            '<div class="odse-skeleton-cell size"></div>' +
-            '<div class="odse-skeleton-cell date"></div>' +
-            '<div class="odse-skeleton-cell action"></div>' +
+            '<div class="odse-breadcrumb-nav odse-skeleton-breadcrumb">' +
+            '<div class="odse-nav-group">' +
+            '<span class="odse-nav-back disabled"><span class="dashicons dashicons-arrow-left-alt2"></span></span>' +
+            '<div class="odse-breadcrumbs"><div class="odse-skeleton-cell" style="width: 120px; height: 18px;"></div></div>' +
             '</div>' +
+            '<div class="odse-search-inline"><input type="search" class="odse-search-input" placeholder="' + (typeof odse_browse_button !== 'undefined' && odse_browse_button.i18n_search || 'Search files...') + '" disabled></div>' +
             '</div>' +
+            '<table class="wp-list-table widefat fixed odse-files-table">' +
+            '<thead><tr>' +
+            '<th class="column-primary" style="width: 40%;">' + (typeof odse_browse_button !== 'undefined' && odse_browse_button.i18n_file_name || 'File Name') + '</th>' +
+            '<th class="column-size" style="width: 20%;">' + (typeof odse_browse_button !== 'undefined' && odse_browse_button.i18n_file_size || 'File Size') + '</th>' +
+            '<th class="column-date" style="width: 25%;">' + (typeof odse_browse_button !== 'undefined' && odse_browse_button.i18n_last_modified || 'Last Modified') + '</th>' +
+            '<th class="column-actions" style="width: 15%;">' + (typeof odse_browse_button !== 'undefined' && odse_browse_button.i18n_actions || 'Actions') + '</th>' +
+            '</tr></thead>' +
+            '<tbody>' + skeletonRowsHtml + '</tbody></table>' +
             '</div>';
 
         // Create DOM structure with skeleton
@@ -51,7 +54,7 @@ var ODSEModal = (function ($) {
             '</div>' +
             '<div class="odse-modal-content">' +
             skeletonHtml +
-            '<iframe class="odse-modal-frame loading" src=""></iframe>' +
+            '<div id="odse-modal-container" class="odse-modal-container hidden"></div>' +
             '</div>' +
             '</div>' +
             '</div>';
@@ -60,7 +63,7 @@ var ODSEModal = (function ($) {
 
         $overlay = $('#odse-modal-overlay');
         $modal = $overlay.find('.odse-modal');
-        $iframe = $overlay.find('.odse-modal-frame');
+        $container = $overlay.find('#odse-modal-container');
         $title = $overlay.find('.odse-modal-title');
         $closeBtn = $overlay.find('.odse-modal-close');
         $skeleton = $overlay.find('.odse-skeleton-loader');
@@ -80,39 +83,46 @@ var ODSEModal = (function ($) {
             }
         });
 
-        // Handle iframe load event
-        $iframe.on('load', function () {
+        // Global event for content loaded
+        $(document).on('odse_content_loaded', function () {
             $skeleton.addClass('hidden');
-            $iframe.removeClass('loading').addClass('loaded');
+            $container.removeClass('hidden');
         });
     }
 
-    function open(url, title) {
+    function open(url, title, isPath) {
         init();
         $title.text(title || 'Select File');
 
-        // Reset state: show skeleton, hide iframe
+        // Reset state: show skeleton, hide container
         $skeleton.removeClass('hidden');
-        $iframe.removeClass('loaded').addClass('loading');
+        $container.addClass('hidden');
 
-        $iframe.attr('src', url);
         $overlay.addClass('open');
         $('body').css('overflow', 'hidden');
+
+        // Trigger library load
+        if (window.ODSEMediaLibrary) {
+            window.ODSEMediaLibrary.load(url || '', isPath);
+        }
     }
 
     function close() {
         if ($overlay) {
             $overlay.removeClass('open');
-            $iframe.attr('src', '');
-            $iframe.removeClass('loaded').addClass('loading');
+            $container.html('');
             $skeleton.removeClass('hidden');
+            $container.addClass('hidden');
             $('body').css('overflow', '');
         }
     }
 
     return {
         open: open,
-        close: close
+        close: close,
+        getSkeletonRows: function () {
+            return skeletonRowsHtml;
+        }
     };
 
 })(jQuery);

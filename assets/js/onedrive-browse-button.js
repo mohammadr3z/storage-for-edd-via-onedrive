@@ -30,12 +30,8 @@ jQuery(function ($) {
             }
         }
 
-        var modalUrl = odse_browse_button.modal_url + '&_wpnonce=' + odse_browse_button.nonce;
-        if (folderPath) {
-            modalUrl += '&odse_path=' + encodeURIComponent(folderPath);
-        }
-
         // Open Modal
-        ODSEModal.open(modalUrl, odse_browse_button.modal_title);
+        // Pass true for isPath because we are providing a folder path string (e.g. "Attachments"), not an ID
+        ODSEModal.open(folderPath, odse_browse_button.modal_title, true);
     });
 });

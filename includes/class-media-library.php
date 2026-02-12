@@ -19,9 +19,6 @@ class ODSE_Media_Library
         $this->config = new ODSE_OneDrive_Config();
         $this->client = new ODSE_OneDrive_Client();
 
-        // Media library integration
-        add_action('media_upload_odse_lib', array($this, 'registerLibraryTab'));
-
         // Enqueue styles
         add_action('admin_enqueue_scripts', array($this, 'enqueueStyles'));
 
@@ -30,83 +27,104 @@ class ODSE_Media_Library
 
         // Print scripts for button functionality
         add_action('admin_footer', array($this, 'printAdminScripts'));
+
+        // AJAX Handler for fetching library
+        add_action('wp_ajax_odse_get_library', array($this, 'ajaxGetLibrary'));
     }
 
-
-
     /**
-     * Register OneDrive Library tab
+     * AJAX Handler to get library content
      */
-    public function registerLibraryTab()
+    public function ajaxGetLibrary()
     {
+        check_ajax_referer('media-form', '_wpnonce');
+
         $mediaCapability = apply_filters('odse_media_access_cap', 'edit_products');
         if (!current_user_can($mediaCapability)) {
-            wp_die(esc_html__('You do not have permission to access OneDrive library.', 'storage-for-edd-via-onedrive'));
+            wp_send_json_error(esc_html__('You do not have permission to access OneDrive library.', 'storage-for-edd-via-onedrive'));
         }
 
-        // Check nonce for GET requests with parameters
-        if (!empty($_GET) && (isset($_GET['folder']) || isset($_GET['_wpnonce']))) {
-            if (!isset($_GET['_wpnonce']) || !wp_verify_nonce(sanitize_text_field(wp_unslash($_GET['_wpnonce'])), 'media-form')) {
-                wp_die(esc_html__('Security check failed.', 'storage-for-edd-via-onedrive'));
+        // 'path' param used in JS
+        // If 'is_path' is true, it's a file path string (e.g. "Attachments") that needs resolving to an ID
+        // Otherwise, it's already a Folder ID
+        $pathInput = isset($_REQUEST['path']) ? sanitize_text_field(wp_unslash($_REQUEST['path'])) : '';
+        $isPath = isset($_REQUEST['is_path']) && $_REQUEST['is_path'] === '1';
+
+        $folderId = '';
+
+        if ($isPath && !empty($pathInput)) {
+            // Resolve Path -> ID
+            $resolvedId = $this->client->getFolderIdByPath($pathInput);
+            if ($resolvedId) {
+                $folderId = $resolvedId;
+            } else {
+                // If path resolution fails (e.g. folder deleted), fallback to root
+                $folderId = 'root';
             }
+        } else {
+            // It's already an ID
+            $folderId = $pathInput;
         }
 
-        if (!empty($_POST)) {
-            if (!isset($_POST['_wpnonce']) || !wp_verify_nonce(sanitize_text_field(wp_unslash($_POST['_wpnonce'])), 'media-form')) {
-                wp_die(esc_html__('Security check failed.', 'storage-for-edd-via-onedrive'));
-            }
-
-            $error = media_upload_form_handler();
-            if (is_string($error)) {
-                return $error;
-            }
-        }
-        wp_iframe(array($this, 'renderLibraryTab'));
-    }
-
-    /**
-     * Render OneDrive Library tab content
-     */
-    public function renderLibraryTab()
-    {
-        wp_enqueue_style('media');
-        wp_enqueue_style('odse-media-library');
-        wp_enqueue_style('odse-media-container');
-        wp_enqueue_style('odse-upload');
-        wp_enqueue_script('odse-media-library');
-        wp_enqueue_script('odse-upload');
-
-        $folderId = $this->getFolderId();
-
-        // Check if OneDrive is connected
-        if (!$this->config->isConnected()) {
-?>
-            <div id="media-items" class="odse-media-container">
-                <h3 class="media-title"><?php esc_html_e('OneDrive File Browser', 'storage-for-edd-via-onedrive'); ?></h3>
-
-                <div class="odse-notice warning">
-                    <h4><?php esc_html_e('OneDrive not connected', 'storage-for-edd-via-onedrive'); ?></h4>
-                    <p><?php esc_html_e('Please connect to OneDrive in the plugin settings before browsing files.', 'storage-for-edd-via-onedrive'); ?></p>
-                    <p>
-                        <a href="<?php echo esc_url(admin_url('edit.php?post_type=download&page=edd-settings&tab=extensions&section=odse-settings')); ?>" class="button-primary">
-                            <?php esc_html_e('Configure OneDrive Settings', 'storage-for-edd-via-onedrive'); ?>
-                        </a>
-                    </p>
-                </div>
-            </div>
-        <?php
-            return;
+        // Prevent directory traversal (not strictly applicable to IDs but good practice)
+        if (strpos($folderId, '..') !== false) {
+            wp_send_json_error(esc_html__('Invalid path.', 'storage-for-edd-via-onedrive'));
         }
 
-        // Use default folder from settings if no folder specified in URL
         if (empty($folderId)) {
             $folderId = $this->config->getSelectedFolder();
         }
 
+        ob_start();
+        $this->renderLibraryContent($folderId);
+        $html = ob_get_clean();
+
+        wp_send_json_success(array('html' => $html));
+    }
+
+    /**
+     * Render the inner content of the library
+     * 
+     * @param string $folderId
+     */
+    private function renderLibraryContent($folderId)
+    {
+        $folderInfo = null;
+        $connection_error = false;
+        $files = [];
+
+        // Check if OneDrive is connected
+        if (!$this->config->isConnected()) {
+            $connection_error = true;
+?>
+            <div class="odse-notice warning">
+                <h4><?php esc_html_e('OneDrive not connected', 'storage-for-edd-via-onedrive'); ?></h4>
+                <p><?php esc_html_e('Please connect to OneDrive in the plugin settings before browsing files.', 'storage-for-edd-via-onedrive'); ?></p>
+                <p>
+                    <a href="<?php echo esc_url(admin_url('edit.php?post_type=download&page=edd-settings&tab=extensions&section=odse-settings')); ?>" class="button-primary">
+                        <?php esc_html_e('Configure OneDrive Settings', 'storage-for-edd-via-onedrive'); ?>
+                    </a>
+                </p>
+            </div>
+        <?php
+            // We return here, similar to how valid connection flow works but ensuring structure is closed if needed.
+            // Actually, for AJAX response, returning just this HTML div is fine.
+            return;
+        }
+
         // Try to get files
         try {
+            // Resolve 'root' logic
+            if (empty($folderId)) {
+                $folderId = 'root';
+            }
+
             $files = $this->client->listFiles($folderId);
-            $connection_error = false;
+
+            // Get folder info for breadcrumbs
+            if ($folderId !== 'root') {
+                $folderInfo = $this->client->getFolderInfo($folderId);
+            }
         } catch (Exception $e) {
             $files = [];
             $connection_error = true;
@@ -115,291 +133,189 @@ class ODSE_Media_Library
         ?>
 
         <?php
-        // Get folder info (details + parent) in single API call - Performance optimization
-        $folderInfo = null;
         $back_url = '';
-        if (!empty($folderId) && $folderId !== 'root') {
-            $folderInfo = $this->client->getFolderInfo($folderId);
-            $parentFolderId = $folderInfo['parentId'];
-            if ($parentFolderId === false) {
-                $parentFolderId = 'root';
+        $currentPath = '';
+        $parentFolderId = '';
+
+        if (!$connection_error) {
+            if (!empty($folderInfo)) {
+                $parentFolderId = isset($folderInfo['parentId']) ? $folderInfo['parentId'] : 'root';
+                if (!$parentFolderId) $parentFolderId = 'root'; // fallback
+
+                $currentPath = isset($folderInfo['path']) ? $folderInfo['path'] : '';
+                $back_url = $parentFolderId;
+            } elseif ($folderId !== 'root') {
+                // Fallback if no folder info but we are not at root (shouldn't happen usually)
+                $back_url = 'root';
             }
-            // Remove success parameters to prevent notice from showing after back navigation
-            $back_url = remove_query_arg(array('odse_success', 'odse_filename', 'error'));
-            $back_url = add_query_arg(array(
-                'folder' => $parentFolderId,
-                '_wpnonce' => wp_create_nonce('media-form')
-            ), $back_url);
         }
         ?>
-        <div style="width: inherit;" id="media-items">
-            <div class="odse-header-row">
-                <h3 class="media-title"><?php esc_html_e('Select a file from OneDrive', 'storage-for-edd-via-onedrive'); ?></h3>
-                <div class="odse-header-buttons">
-                    <button type="button" class="button button-primary" id="odse-toggle-upload">
-                        <?php esc_html_e('Upload File', 'storage-for-edd-via-onedrive'); ?>
-                    </button>
+        <div class="odse-header-row">
+            <h3 class="media-title"><?php esc_html_e('Select a file from OneDrive', 'storage-for-edd-via-onedrive'); ?></h3>
+            <div class="odse-header-buttons">
+                <button type="button" class="button button-primary" id="odse-toggle-upload">
+                    <?php esc_html_e('Upload File', 'storage-for-edd-via-onedrive'); ?>
+                </button>
+            </div>
+        </div>
+
+        <?php if ($connection_error) { ?>
+            <div class="odse-notice warning">
+                <h4><?php esc_html_e('Connection Error', 'storage-for-edd-via-onedrive'); ?></h4>
+                <p><?php esc_html_e('Unable to connect to OneDrive.', 'storage-for-edd-via-onedrive'); ?></p>
+                <p><?php esc_html_e('Please check your OneDrive configuration settings and try again.', 'storage-for-edd-via-onedrive'); ?></p>
+                <p>
+                    <a href="<?php echo esc_url(admin_url('edit.php?post_type=download&page=edd-settings&tab=extensions&section=odse-settings')); ?>" class="button-primary">
+                        <?php esc_html_e('Check Settings', 'storage-for-edd-via-onedrive'); ?>
+                    </a>
+                </p>
+            </div>
+        <?php } else { ?>
+
+            <div class="odse-breadcrumb-nav">
+                <div class="odse-nav-group">
+                    <?php if (!empty($folderInfo) && $folderId !== 'root') { ?>
+                        <a href="#" class="odse-nav-back" title="<?php esc_attr_e('Go Back', 'storage-for-edd-via-onedrive'); ?>" data-path="<?php echo esc_attr($parentFolderId); ?>">
+                            <span class="dashicons dashicons-arrow-left-alt2"></span>
+                        </a>
+                    <?php } else { ?>
+                        <span class="odse-nav-back disabled">
+                            <span class="dashicons dashicons-arrow-left-alt2"></span>
+                        </span>
+                    <?php } ?>
+
+                    <div class="odse-breadcrumbs">
+                        <?php
+                        // Breadcrumbs
+                        $root_link = '<a href="#" data-path="">' . esc_html__('Home', 'storage-for-edd-via-onedrive') . '</a>';
+
+                        if (!empty($currentPath)) {
+                            $path_parts = explode('/', trim($currentPath, '/'));
+
+                            echo $root_link;
+                            foreach ($path_parts as $part) {
+                                echo ' <span class="sep">/</span> <span class="text">' . esc_html($part) . '</span>';
+                            }
+                        } else {
+                            echo '<span class="current">' . esc_html__('Home', 'storage-for-edd-via-onedrive') . '</span>';
+                        }
+                        ?>
+                    </div>
                 </div>
+
+                <?php if (!empty($files)) { ?>
+                    <div class="odse-search-inline">
+                        <input type="search"
+                            id="odse-file-search"
+                            class="odse-search-input"
+                            placeholder="<?php esc_attr_e('Search files...', 'storage-for-edd-via-onedrive'); ?>">
+                    </div>
+                <?php } ?>
             </div>
 
-            <?php if ($connection_error) { ?>
-                <div class="odse-notice warning">
-                    <h4><?php esc_html_e('Connection Error', 'storage-for-edd-via-onedrive'); ?></h4>
-                    <p><?php esc_html_e('Unable to connect to OneDrive.', 'storage-for-edd-via-onedrive'); ?></p>
-                    <p><?php esc_html_e('Please check your OneDrive configuration settings and try again.', 'storage-for-edd-via-onedrive'); ?></p>
-                    <p>
-                        <a href="<?php echo esc_url(admin_url('edit.php?post_type=download&page=edd-settings&tab=extensions&section=odse-settings')); ?>" class="button-primary">
-                            <?php esc_html_e('Check Settings', 'storage-for-edd-via-onedrive'); ?>
-                        </a>
-                    </p>
+            <?php
+            // Upload form integrated into Library
+            ?>
+            <!-- Upload Form (Hidden by default) -->
+            <form enctype="multipart/form-data" method="post" action="#" class="odse-upload-form" id="odse-upload-section" style="display: none;">
+                <?php wp_nonce_field('odse_upload', 'odse_nonce'); ?>
+                <input type="hidden" name="action" value="odse_ajax_upload" />
+                <div class="upload-field">
+                    <input type="file"
+                        name="odse_file"
+                        accept=".zip,.rar,.7z,.pdf,.doc,.docx,.xls,.xlsx,.jpg,.jpeg,.png,.gif" />
                 </div>
-            <?php } elseif (!$connection_error) { ?>
+                <p class="description">
+                    <?php
+                    // translators: %s: Maximum upload file size.
+                    printf(esc_html__('Maximum upload file size: %s', 'storage-for-edd-via-onedrive'), esc_html(size_format(wp_max_upload_size())));
+                    ?>
+                </p>
+                <input type="submit"
+                    class="button-primary"
+                    value="<?php esc_attr_e('Upload', 'storage-for-edd-via-onedrive'); ?>" />
+                <input type="hidden" name="odse_path" value="<?php echo esc_attr($folderId); ?>" />
+            </form>
 
-                <div class="odse-breadcrumb-nav">
-                    <div class="odse-nav-group">
-                        <?php if (!empty($back_url)) { ?>
-                            <a href="<?php echo esc_url($back_url); ?>" class="odse-nav-back" title="<?php esc_attr_e('Go Back', 'storage-for-edd-via-onedrive'); ?>">
-                                <span class="dashicons dashicons-arrow-left-alt2"></span>
-                            </a>
-                        <?php } else { ?>
-                            <span class="odse-nav-back disabled">
-                                <span class="dashicons dashicons-arrow-left-alt2"></span>
-                            </span>
-                        <?php } ?>
+            <?php if (is_array($files) && !empty($files)) { ?>
 
-                        <div class="odse-breadcrumbs">
-                            <?php
-                            if (!empty($folderId) && $folderId !== 'root' && $folderInfo) {
-                                $currentPath = isset($folderInfo['path']) ? $folderInfo['path'] : '';
-
-                                if (!empty($currentPath)) {
-                                    // Build breadcrumb navigation from path
-                                    $path_parts = explode('/', trim($currentPath, '/'));
-                                    $breadcrumb_links = array();
-
-                                    // Root link
-                                    $root_url = remove_query_arg(array('folder', 'odse_success', 'odse_filename', 'error'));
-                                    $root_url = add_query_arg(array('_wpnonce' => wp_create_nonce('media-form')), $root_url);
-                                    $breadcrumb_links[] = '<a href="' . esc_url($root_url) . '">' . esc_html__('Home', 'storage-for-edd-via-onedrive') . '</a>';
-
-                                    // Build path links - for OneDrive we need to get folder IDs for each path segment
-                                    // We show only current folder
-                                    foreach ($path_parts as $index => $part) {
-                                        if ($index === count($path_parts) - 1) {
-                                            // Current folder - not a link
-                                            $breadcrumb_links[] = '<span class="current">' . esc_html($part) . '</span>';
-                                        } else {
-                                            // Parent folders - show as text (we don't have folder IDs)
-                                            $breadcrumb_links[] = '<span class="text">' . esc_html($part) . '</span>';
-                                        }
-                                    }
-
-                                    echo wp_kses(implode(' <span class="sep">/</span> ', $breadcrumb_links), array(
-                                        'a' => array('href' => array()),
-                                        'span' => array('class' => array())
-                                    ));
-                                } else {
-                                    echo '<span class="current">' . esc_html__('Home', 'storage-for-edd-via-onedrive') . '</span>';
-                                }
-                            } else {
-                                echo '<span class="current">' . esc_html__('Home', 'storage-for-edd-via-onedrive') . '</span>';
-                            }
-                            ?>
-                        </div>
-                    </div>
-
-                    <?php if (!empty($files)) { ?>
-                        <div class="odse-search-inline">
-                            <input type="search"
-                                id="odse-file-search"
-                                class="odse-search-input"
-                                placeholder="<?php esc_attr_e('Search files...', 'storage-for-edd-via-onedrive'); ?>">
-                        </div>
-                    <?php } ?>
-                </div>
-
-
-                <?php
-                // Upload form integrated into Library
-                $successFlag = filter_input(INPUT_GET, 'odse_success', FILTER_SANITIZE_NUMBER_INT);
-                $errorMsg = filter_input(INPUT_GET, 'error', FILTER_SANITIZE_FULL_SPECIAL_CHARS);
-
-                if ($errorMsg) {
-                    $this->config->debug('Upload error: ' . $errorMsg);
-                ?>
-                    <div class="edd_errors odse-notice warning">
-                        <h4><?php esc_html_e('Error', 'storage-for-edd-via-onedrive'); ?></h4>
-                        <p class="edd_error"><?php esc_html_e('An error occurred during the upload process. Please try again.', 'storage-for-edd-via-onedrive'); ?></p>
-                    </div>
-                <?php
-                }
-
-                if (!empty($successFlag) && '1' == $successFlag) {
-                    $savedPathAndFilename = filter_input(INPUT_GET, 'odse_filename', FILTER_SANITIZE_FULL_SPECIAL_CHARS);
-                    $savedPathAndFilename = sanitize_text_field($savedPathAndFilename);
-                    $lastSlashPos = strrpos($savedPathAndFilename, '/');
-                    $savedFilename = $lastSlashPos !== false ? substr($savedPathAndFilename, $lastSlashPos + 1) : $savedPathAndFilename;
-                ?>
-                    <div class="edd_errors odse-notice success">
-                        <h4><?php esc_html_e('Upload Successful', 'storage-for-edd-via-onedrive'); ?></h4>
-                        <p class="edd_success">
-                            <?php
-                            // translators: %s: File name.
-                            printf(esc_html__('File %s uploaded successfully!', 'storage-for-edd-via-onedrive'), '<strong>' . esc_html($savedFilename) . '</strong>');
-                            ?>
-                        </p>
-                        <p>
-                            <a href="javascript:void(0)"
-                                id="odse_save_link"
-                                class="button-primary"
-                                data-odse-fn="<?php echo esc_attr($savedFilename); ?>"
-                                data-odse-path="<?php echo esc_attr(ltrim($savedPathAndFilename, '/')); ?>">
-                                <?php esc_html_e('Use this file in your Download', 'storage-for-edd-via-onedrive'); ?>
-                            </a>
-                        </p>
-                    </div>
-                <?php
-                }
-                ?>
-                <!-- Upload Form (Hidden by default) -->
-                <form enctype="multipart/form-data" method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>" class="odse-upload-form" id="odse-upload-section" style="display: none;">
-                    <?php wp_nonce_field('odse_upload', 'odse_nonce'); ?>
-                    <input type="hidden" name="action" value="odse_upload" />
-                    <div class="upload-field">
-                        <input type="file"
-                            name="odse_file"
-                            accept=".zip,.rar,.7z,.pdf,.doc,.docx,.xls,.xlsx,.jpg,.jpeg,.png,.gif" />
-                    </div>
-                    <p class="description">
+                <!-- File Display Table -->
+                <table class="wp-list-table widefat fixed odse-files-table">
+                    <thead>
+                        <tr>
+                            <th class="column-primary" style="width: 40%;"><?php esc_html_e('File Name', 'storage-for-edd-via-onedrive'); ?></th>
+                            <th class="column-size" style="width: 20%;"><?php esc_html_e('File Size', 'storage-for-edd-via-onedrive'); ?></th>
+                            <th class="column-date" style="width: 25%;"><?php esc_html_e('Last Modified', 'storage-for-edd-via-onedrive'); ?></th>
+                            <th class="column-actions" style="width: 15%;"><?php esc_html_e('Actions', 'storage-for-edd-via-onedrive'); ?></th>
+                        </tr>
+                    </thead>
+                    <tbody>
                         <?php
-                        // translators: %s: Maximum upload file size.
-                        printf(esc_html__('Maximum upload file size: %s', 'storage-for-edd-via-onedrive'), esc_html(size_format(wp_max_upload_size())));
+                        // Sort: folders first, then files
+                        usort($files, function ($a, $b) {
+                            if ($a['is_folder'] && !$b['is_folder']) return -1;
+                            if (!$a['is_folder'] && $b['is_folder']) return 1;
+                            return strcasecmp($a['name'], $b['name']);
+                        });
+
+                        foreach ($files as $file) {
+                            // Handle folders
+                            if ($file['is_folder']) {
                         ?>
-                    </p>
-                    <input type="submit"
-                        class="button-primary"
-                        value="<?php esc_attr_e('Upload', 'storage-for-edd-via-onedrive'); ?>" />
-                    <input type="hidden" name="odse_folder" value="<?php echo esc_attr($folderId); ?>" />
-                </form>
-
-                <?php if (is_array($files) && !empty($files)) { ?>
-
-
-                    <!-- File Display Table -->
-                    <table class="wp-list-table widefat fixed odse-files-table">
-                        <thead>
-                            <tr>
-                                <th class="column-primary" style="width: 40%;"><?php esc_html_e('File Name', 'storage-for-edd-via-onedrive'); ?></th>
-                                <th class="column-size" style="width: 20%;"><?php esc_html_e('File Size', 'storage-for-edd-via-onedrive'); ?></th>
-                                <th class="column-date" style="width: 25%;"><?php esc_html_e('Last Modified', 'storage-for-edd-via-onedrive'); ?></th>
-                                <th class="column-actions" style="width: 15%;"><?php esc_html_e('Actions', 'storage-for-edd-via-onedrive'); ?></th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            <?php
-                            // Sort: folders first, then files
-                            usort($files, function ($a, $b) {
-                                if ($a['is_folder'] && !$b['is_folder']) return -1;
-                                if (!$a['is_folder'] && $b['is_folder']) return 1;
-                                return strcasecmp($a['name'], $b['name']);
-                            });
-
-                            foreach ($files as $file) {
-                                // Handle folders
-                                if ($file['is_folder']) {
-                                    $folder_url = add_query_arg(array(
-                                        'folder' => $file['id'],
-                                        '_wpnonce' => wp_create_nonce('media-form')
-                                    ));
-                            ?>
-                                    <tr class="odse-folder-row">
-                                        <td class="column-primary" data-label="<?php esc_attr_e('Folder Name', 'storage-for-edd-via-onedrive'); ?>">
-                                            <a href="<?php echo esc_url($folder_url); ?>" class="folder-link">
-                                                <span class="dashicons dashicons-category"></span>
-                                                <span class="file-name"><?php echo esc_html($file['name']); ?></span>
-                                            </a>
-                                        </td>
-                                        <td class="column-size">—</td>
-                                        <td class="column-date">—</td>
-                                        <td class="column-actions">
-                                            <a href="<?php echo esc_url($folder_url); ?>" class="button-secondary button-small">
-                                                <?php esc_html_e('Open', 'storage-for-edd-via-onedrive'); ?>
-                                            </a>
-                                        </td>
-                                    </tr>
-                                <?php
-                                    continue;
-                                }
-
-                                // Handle files
-                                $file_size = $this->formatFileSize($file['size']);
-                                $last_modified = !empty($file['modified']) ? $this->formatHumanDate($file['modified']) : '—';
-                                ?>
-                                <tr>
-                                    <td class="column-primary" data-label="<?php esc_attr_e('File Name', 'storage-for-edd-via-onedrive'); ?>">
-                                        <div class="odse-file-display">
+                                <tr class="odse-folder-row">
+                                    <td class="column-primary" data-label="<?php esc_attr_e('Folder Name', 'storage-for-edd-via-onedrive'); ?>">
+                                        <a href="#" class="folder-link" data-path="<?php echo esc_attr($file['id']); ?>">
+                                            <span class="dashicons dashicons-category"></span>
                                             <span class="file-name"><?php echo esc_html($file['name']); ?></span>
-                                        </div>
+                                        </a>
                                     </td>
-                                    <td class="column-size" data-label="<?php esc_attr_e('File Size', 'storage-for-edd-via-onedrive'); ?>">
-                                        <span class="file-size"><?php echo esc_html($file_size); ?></span>
-                                    </td>
-                                    <td class="column-date" data-label="<?php esc_attr_e('Last Modified', 'storage-for-edd-via-onedrive'); ?>">
-                                        <span class="file-date"><?php echo esc_html($last_modified); ?></span>
-                                    </td>
-                                    <td class="column-actions" data-label="<?php esc_attr_e('Actions', 'storage-for-edd-via-onedrive'); ?>">
-                                        <a class="save-odse-file button-secondary button-small"
-                                            href="javascript:void(0)"
-                                            data-odse-filename="<?php echo esc_attr($file['name']); ?>"
-                                            data-odse-link="<?php echo esc_attr(ltrim($file['path'], '/')); ?>">
-                                            <?php esc_html_e('Select File', 'storage-for-edd-via-onedrive'); ?>
+                                    <td class="column-size">—</td>
+                                    <td class="column-date">—</td>
+                                    <td class="column-actions">
+                                        <a href="#" class="button-secondary button-small folder-link" data-path="<?php echo esc_attr($file['id']); ?>">
+                                            <?php esc_html_e('Open', 'storage-for-edd-via-onedrive'); ?>
                                         </a>
                                     </td>
                                 </tr>
-                            <?php } ?>
-                        </tbody>
-                    </table>
-                <?php } else { ?>
-                    <div class="odse-notice info" style="margin-top: 15px;">
-                        <p><?php esc_html_e('This folder is empty. Use the upload form above to add files.', 'storage-for-edd-via-onedrive'); ?></p>
-                    </div>
-                <?php } ?>
+                            <?php
+                                continue;
+                            }
+
+                            // Handle files
+                            $file_size = $this->formatFileSize($file['size']);
+                            $last_modified = !empty($file['modified']) ? $this->formatHumanDate($file['modified']) : '—';
+                            ?>
+                            <tr>
+                                <td class="column-primary" data-label="<?php esc_attr_e('File Name', 'storage-for-edd-via-onedrive'); ?>">
+                                    <div class="odse-file-display">
+                                        <span class="file-name"><?php echo esc_html($file['name']); ?></span>
+                                    </div>
+                                </td>
+                                <td class="column-size" data-label="<?php esc_attr_e('File Size', 'storage-for-edd-via-onedrive'); ?>">
+                                    <span class="file-size"><?php echo esc_html($file_size); ?></span>
+                                </td>
+                                <td class="column-date" data-label="<?php esc_attr_e('Last Modified', 'storage-for-edd-via-onedrive'); ?>">
+                                    <span class="file-date"><?php echo esc_html($last_modified); ?></span>
+                                </td>
+                                <td class="column-actions" data-label="<?php esc_attr_e('Actions', 'storage-for-edd-via-onedrive'); ?>">
+                                    <a class="save-odse-file button-secondary button-small"
+                                        href="javascript:void(0)"
+                                        data-odse-filename="<?php echo esc_attr($file['name']); ?>"
+                                        data-odse-link="<?php echo esc_attr(ltrim($file['path'], '/')); ?>">
+                                        <?php esc_html_e('Select File', 'storage-for-edd-via-onedrive'); ?>
+                                    </a>
+                                </td>
+                            </tr>
+                        <?php } ?>
+                    </tbody>
+                </table>
+            <?php } else { ?>
+                <div class="odse-notice info" style="margin-top: 15px;">
+                    <p><?php esc_html_e('This folder is empty. Use the upload form above to add files.', 'storage-for-edd-via-onedrive'); ?></p>
+                </div>
             <?php } ?>
-        </div>
+        <?php } ?>
     <?php
-    }
-
-    /**
-     * Get current folder ID from GET param
-     * @return string
-     */
-    private function getFolderId()
-    {
-        $mediaCapability = apply_filters('odse_media_access_cap', 'edit_products');
-        if (!current_user_can($mediaCapability)) {
-            return '';
-        }
-
-        if (!empty($_GET['folder'])) {
-            if (!isset($_GET['_wpnonce']) || !wp_verify_nonce(sanitize_text_field(wp_unslash($_GET['_wpnonce'])), 'media-form')) {
-                wp_die(esc_html__('Security check failed.', 'storage-for-edd-via-onedrive'));
-            }
-            return trim(sanitize_text_field(wp_unslash($_GET['folder'])));
-        }
-
-        // Context-Aware: Check for path parameter
-        if (!empty($_GET['odse_path'])) {
-            if (!isset($_GET['_wpnonce']) || !wp_verify_nonce(sanitize_text_field(wp_unslash($_GET['_wpnonce'])), 'media-form')) {
-                wp_die(esc_html__('Security check failed.', 'storage-for-edd-via-onedrive'));
-            }
-            $path = trim(sanitize_text_field(wp_unslash($_GET['odse_path'])));
-            $folderId = $this->client->getFolderIdByPath($path);
-            if ($folderId) {
-                return $folderId;
-            }
-        }
-
-        return '';
     }
 
     /**
@@ -515,17 +431,28 @@ class ODSE_Media_Library
         wp_enqueue_style('odse-modal');
         wp_enqueue_script('odse-modal');
 
+        // Enqueue media library assets (AJAX)
+        wp_enqueue_style('odse-media-library');
+        wp_enqueue_script('odse-media-library');
+        wp_enqueue_style('odse-upload');
+        wp_enqueue_script('odse-upload');
+
         // Enqueue browse button assets
         wp_enqueue_style('odse-browse-button');
         wp_enqueue_script('odse-browse-button');
 
         // Localize script with dynamic data
-        $odse_url = admin_url('media-upload.php?type=odse_lib&tab=odse_lib');
         wp_localize_script('odse-browse-button', 'odse_browse_button', array(
-            'modal_url'   => $odse_url,
-            'modal_title' => __('OneDrive Library', 'storage-for-edd-via-onedrive'),
-            'nonce'       => wp_create_nonce('media-form'),
-            'url_prefix'  => $this->config->getUrlPrefix()
+            'modal_title'        => __('OneDrive Library', 'storage-for-edd-via-onedrive'),
+            'nonce'              => wp_create_nonce('media-form'),
+            'url_prefix'         => $this->config->getUrlPrefix(),
+            'i18n_select_file'   => __('Select a file from OneDrive', 'storage-for-edd-via-onedrive'),
+            'i18n_upload'        => __('Upload File', 'storage-for-edd-via-onedrive'),
+            'i18n_file_name'     => __('File Name', 'storage-for-edd-via-onedrive'),
+            'i18n_file_size'     => __('File Size', 'storage-for-edd-via-onedrive'),
+            'i18n_last_modified' => __('Last Modified', 'storage-for-edd-via-onedrive'),
+            'i18n_actions'       => __('Actions', 'storage-for-edd-via-onedrive'),
+            'i18n_search'        => __('Search files...', 'storage-for-edd-via-onedrive')
         ));
     }
 }

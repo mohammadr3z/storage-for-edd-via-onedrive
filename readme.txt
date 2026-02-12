@@ -4,7 +4,7 @@ Contributors: mohammadr3z
 Tags: easy-digital-downloads, onedrive, storage, cloud, edd
 Requires at least: 5.0
 Tested up to: 6.9
-Stable tag: 1.0.5
+Stable tag: 1.1.0
 Requires PHP: 7.4
 License: GPL-2.0-or-later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
@@ -105,6 +105,9 @@ Yes, developers can customize the allowed MIME types using the `odse_allowed_mim
 3. File upload to OneDrive storage interface
 
 == Changelog ==
+
+= 1.1.0 =
+* Major Refactor: Replaced legacy iframe browser with modern AJAX implementation for improved performance.
 
 = 1.0.5 =
 * Improved: UI styles and enhanced layout consistency for better harmony.

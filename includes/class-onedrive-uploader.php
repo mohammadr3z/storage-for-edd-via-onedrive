@@ -20,6 +20,9 @@ class ODSE_OneDrive_Uploader
 
         // Register upload handler for admin-post.php
         add_action('admin_post_odse_upload', array($this, 'performFileUpload'));
+
+        // Register AJAX upload handler
+        add_action('wp_ajax_odse_ajax_upload', array($this, 'ajaxUpload'));
     }
 
     /**
@@ -52,57 +55,9 @@ class ODSE_OneDrive_Uploader
             $folderId = $this->config->getSelectedFolder();
         }
 
-        // Check and sanitize file name
-        $filename = '';
-        if (isset($_FILES['odse_file']['name']) && !empty($_FILES['odse_file']['name'])) {
-            // phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- Filename is sanitized using sanitize_file_name
-            $filename = sanitize_file_name($_FILES['odse_file']['name']);
-        } else {
-            wp_die(esc_html__('No file selected for upload.', 'storage-for-edd-via-onedrive'), esc_html__('Error', 'storage-for-edd-via-onedrive'), array('back_link' => true));
-        }
-
-        if (!$this->config->isConnected()) {
-            wp_die(esc_html__('OneDrive is not connected. Please connect to OneDrive first.', 'storage-for-edd-via-onedrive'), esc_html__('Error', 'storage-for-edd-via-onedrive'), array('back_link' => true));
-        }
-
         try {
-            // Read file content securely
-            $fileContent = '';
-            if (
-                isset($_FILES['odse_file']['tmp_name']) &&
-                // phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- tmp_name is a system path
-                is_uploaded_file($_FILES['odse_file']['tmp_name']) &&
-                // phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- tmp_name is a system path
-                is_readable($_FILES['odse_file']['tmp_name'])
-            ) {
-                // phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- tmp_name is a system path
-                $fileContent = file_get_contents($_FILES['odse_file']['tmp_name']);
-                if ($fileContent === false) {
-                    wp_die(esc_html__('Unable to read uploaded file.', 'storage-for-edd-via-onedrive'), esc_html__('Error', 'storage-for-edd-via-onedrive'), array('back_link' => true));
-                }
-            } else {
-                wp_die(esc_html__('Invalid file upload.', 'storage-for-edd-via-onedrive'), esc_html__('Error', 'storage-for-edd-via-onedrive'), array('back_link' => true));
-            }
-
-            // Upload to OneDrive
-            $result = $this->client->uploadFile($filename, $fileContent, $folderId);
-
-            if (!$result) {
-                wp_die(esc_html__('Failed to upload file to OneDrive.', 'storage-for-edd-via-onedrive'), esc_html__('Error', 'storage-for-edd-via-onedrive'), array('back_link' => true));
-            }
-
-            // Get the file ID and Name from OneDrive response
-            $uploadedId = isset($result['id']) ? $result['id'] : '';
-            $uploadedName = isset($result['name']) ? $result['name'] : $filename;
-
-            // Calculate full path
-            $parentPath = isset($result['parentReference']['path']) ? $result['parentReference']['path'] : '';
-            // Remove /drive/root: prefix
-            if (strpos($parentPath, '/drive/root:') === 0) {
-                $parentPath = substr($parentPath, 12);
-            }
-            // Construct path
-            $uploadedPath = rtrim($parentPath, '/') . '/' . $uploadedName;
+            // Process upload
+            $uploadedPath = $this->processUpload($_FILES['odse_file'], $folderId);
 
             // Create secure redirect URL
             $referer = wp_get_referer();
@@ -126,12 +81,106 @@ class ODSE_OneDrive_Uploader
     }
 
     /**
-     * Validate file upload.
-     * @return bool
+     * Handle AJAX file upload.
      */
-    private function validateUpload()
+    public function ajaxUpload()
     {
-        // phpcs:disable WordPress.Security.NonceVerification.Missing -- Nonce verified in performFileUpload() before this method is called.
+        check_ajax_referer('odse_upload', 'odse_nonce');
+
+        $uploadCapability = apply_filters('odse_upload_cap', 'edit_products');
+        if (!current_user_can($uploadCapability)) {
+            wp_send_json_error(esc_html__('You do not have permission to upload files to OneDrive.', 'storage-for-edd-via-onedrive'));
+        }
+
+        // Use checkUploadValidation for better AJAX error handling
+        $validation = $this->checkUploadValidation();
+        if ($validation !== true) {
+            wp_send_json_error($validation);
+        }
+
+        $folderId = isset($_POST['odse_path']) ? sanitize_text_field(wp_unslash($_POST['odse_path'])) : '';
+        if (empty($folderId)) {
+            $folderId = $this->config->getSelectedFolder();
+        }
+
+        if (!$this->config->isConnected()) {
+            wp_send_json_error(esc_html__('OneDrive is not connected.', 'storage-for-edd-via-onedrive'));
+        }
+
+        try {
+            $uploadedPath = $this->processUpload($_FILES['odse_file'], $folderId);
+
+            // Return success with file info
+            wp_send_json_success(array(
+                'message' => esc_html__('File uploaded successfully!', 'storage-for-edd-via-onedrive'),
+                'filename' => basename($uploadedPath),
+                'path' => $uploadedPath,
+                'odse_link' => ltrim($uploadedPath, '/')
+            ));
+        } catch (Exception $e) {
+            $this->config->debug('AJAX upload error: ' . $e->getMessage());
+            wp_send_json_error($e->getMessage());
+        }
+    }
+
+    /**
+     * Core upload processing logic
+     * 
+     * @param array $file_array $_FILES item
+     * @param string $folderId Target folder ID
+     * @return string Uploaded file path (display path)
+     * @throws Exception
+     */
+    private function processUpload($file_array, $folderId)
+    {
+        // Check and sanitize file name
+        $filename = '';
+        if (isset($file_array['name']) && !empty($file_array['name'])) {
+            $filename = sanitize_file_name($file_array['name']);
+        } else {
+            throw new Exception(esc_html__('No file selected.', 'storage-for-edd-via-onedrive'));
+        }
+
+        // Validate file path
+        if (
+            !isset($file_array['tmp_name']) ||
+            !is_uploaded_file($file_array['tmp_name']) ||
+            !is_readable($file_array['tmp_name'])
+        ) {
+            throw new Exception(esc_html__('Invalid file upload.', 'storage-for-edd-via-onedrive'));
+        }
+
+        $filePath = $file_array['tmp_name'];
+
+        // Upload to OneDrive using stream (memory efficient)
+        $result = $this->client->uploadFileStream($filename, $filePath, $folderId);
+
+        if (!$result) {
+            throw new Exception(esc_html__('Failed to upload file to OneDrive.', 'storage-for-edd-via-onedrive'));
+        }
+
+        // Get the file ID and Name from OneDrive response
+        $uploadedName = isset($result['name']) ? $result['name'] : $filename;
+
+        // Calculate full path
+        $parentPath = isset($result['parentReference']['path']) ? $result['parentReference']['path'] : '';
+        // Remove /drive/root: prefix
+        if (strpos($parentPath, '/drive/root:') === 0) {
+            $parentPath = substr($parentPath, 12);
+        }
+        // Construct path
+        $uploadedPath = rtrim($parentPath, '/') . '/' . $uploadedName;
+
+        return $uploadedPath;
+    }
+
+    /**
+     * Helper to return validation result without dying (for AJAX)
+     * @return bool|string Returns true on success, or error message string on failure
+     */
+    private function checkUploadValidation()
+    {
+        // phpcs:disable WordPress.Security.NonceVerification.Missing -- Nonce verified in calling methods before this is called.
         // Check for file existence and its components
         if (
             !isset($_FILES['odse_file']) ||
@@ -140,29 +189,25 @@ class ODSE_OneDrive_Uploader
             !isset($_FILES['odse_file']['size']) ||
             empty($_FILES['odse_file']['name'])
         ) {
-            wp_die(esc_html__('Please select a file to upload.', 'storage-for-edd-via-onedrive'), esc_html__('Error', 'storage-for-edd-via-onedrive'), array('back_link' => true));
-            return false;
+            return esc_html__('Please select a file to upload.', 'storage-for-edd-via-onedrive');
         }
 
         // Check uploaded file security
         // phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized, WordPress.Security.ValidatedSanitizedInput.MissingUnslash -- tmp_name is a system path
         if (!is_uploaded_file($_FILES['odse_file']['tmp_name'])) {
-            wp_die(esc_html__('Invalid file upload.', 'storage-for-edd-via-onedrive'), esc_html__('Error', 'storage-for-edd-via-onedrive'), array('back_link' => true));
-            return false;
+            return esc_html__('Invalid file upload.', 'storage-for-edd-via-onedrive');
         }
 
         // Validate file type
         // phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized, WordPress.Security.ValidatedSanitizedInput.MissingUnslash -- Filename is sanitized using sanitize_file_name
         if (!$this->isAllowedFileType(sanitize_file_name($_FILES['odse_file']['name']))) {
-            wp_die(esc_html__('File type not allowed. Only safe file types are permitted.', 'storage-for-edd-via-onedrive'), esc_html__('Error', 'storage-for-edd-via-onedrive'), array('back_link' => true));
-            return false;
+            return esc_html__('File type not allowed. Only safe file types are permitted.', 'storage-for-edd-via-onedrive');
         }
 
         // Validate Content-Type (MIME type)
-        // phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized, WordPress.Security.ValidatedSanitizedInput.MissingUnslash -- $_FILES array passed to validateFileContentType() where tmp_name is used as system path and name is sanitized via sanitize_file_name() with wp_check_filetype_and_ext() validation.
+        // phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized, WordPress.Security.ValidatedSanitizedInput.MissingUnslash -- $_FILES array passed to validateFileContentType()
         if (!$this->validateFileContentType($_FILES['odse_file'])) {
-            wp_die(esc_html__('File content type validation failed. The file may be corrupted or have an incorrect extension.', 'storage-for-edd-via-onedrive'), esc_html__('Error', 'storage-for-edd-via-onedrive'), array('back_link' => true));
-            return false;
+            return esc_html__('File content type validation failed. The file may be corrupted or have an incorrect extension.', 'storage-for-edd-via-onedrive');
         }
 
         // Check and sanitize file size
@@ -170,17 +215,30 @@ class ODSE_OneDrive_Uploader
         $fileSize = absint($_FILES['odse_file']['size']);
         $maxSize = wp_max_upload_size();
         if ($fileSize > $maxSize || $fileSize <= 0) {
-            wp_die(
+            return sprintf(
                 // translators: %s: Maximum upload file size.
-                sprintf(esc_html__('File size too large. Maximum allowed size is %s', 'storage-for-edd-via-onedrive'), esc_html(size_format($maxSize))),
-                esc_html__('Error', 'storage-for-edd-via-onedrive'),
-                array('back_link' => true)
+                esc_html__('File size too large. Maximum allowed size is %s', 'storage-for-edd-via-onedrive'),
+                esc_html(size_format($maxSize))
             );
-            return false;
         }
 
         // phpcs:enable WordPress.Security.NonceVerification.Missing
         return true;
+    }
+
+    /**
+     * Validate file upload (legacy wrapper for non-AJAX calls).
+     * @return bool
+     */
+    private function validateUpload()
+    {
+        $result = $this->checkUploadValidation();
+        if ($result === true) {
+            return true;
+        }
+
+        wp_die($result, esc_html__('Error', 'storage-for-edd-via-onedrive'), array('back_link' => true));
+        return false;
     }
 
     /**

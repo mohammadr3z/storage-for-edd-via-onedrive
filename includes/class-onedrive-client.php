@@ -456,6 +456,75 @@ class ODSE_OneDrive_Client
     }
 
     /**
+     * Upload a file to OneDrive using stream (memory efficient)
+     * 
+     * @param string $filename Filename
+     * @param string $filePath Path to the file on disk
+     * @param string $folderId Parent folder ID
+     * @return array|false File metadata or false on failure
+     */
+    public function uploadFileStream($filename, $filePath, $folderId = '')
+    {
+        $client = $this->getClient();
+        $access_token = $this->getValidAccessToken();
+
+        if (!$client || !$access_token) {
+            return false;
+        }
+
+        // Validate file path
+        if (!file_exists($filePath) || !is_readable($filePath)) {
+            $this->config->debug('Upload error: File not found or not readable');
+            return false;
+        }
+
+        // Build endpoint
+        if (empty($folderId) || $folderId === 'root') {
+            $endpoint = '/me/drive/root:/' . rawurlencode($filename) . ':/content';
+        } else {
+            $endpoint = '/me/drive/items/' . $folderId . ':/' . rawurlencode($filename) . ':/content';
+        }
+
+        try {
+            // Open file as a stream resource (memory efficient)
+            // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fopen -- Required for Guzzle stream upload
+            $stream = fopen($filePath, 'r');
+            if ($stream === false) {
+                $this->config->debug('Upload error: Could not open file for reading');
+                return false;
+            }
+
+            try {
+                $response = $client->request('PUT', self::API_URL . $endpoint, [
+                    'headers' => [
+                        'Authorization' => 'Bearer ' . $access_token,
+                        'Content-Type' => 'application/octet-stream',
+                    ],
+                    'body' => $stream
+                ]);
+
+                $statusCode = $response->getStatusCode();
+
+                if ($statusCode !== 200 && $statusCode !== 201) {
+                    $this->config->debug('Upload failed with status: ' . $statusCode);
+                    return false;
+                }
+
+                return json_decode($response->getBody()->getContents(), true);
+            } finally {
+                // Close the stream safely in finally block
+                // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fclose
+                if (is_resource($stream)) {
+                    fclose($stream);
+                }
+            }
+        } catch (Exception $e) {
+            $this->config->debug('Upload error: ' . $e->getMessage());
+            return false;
+        }
+    }
+
+    /**
      * Get folder info (details + parent ID) in single API call
      * Performance optimization: replaces separate getFolderDetails + getParentFolderId calls
      * 
